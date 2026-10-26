@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -12,7 +13,18 @@ import (
 )
 
 func configureProcess(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x00000200}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags |= 0x00000200
+	// cmd.exe does not use the CommandLineToArgvW quoting convention used by
+	// os/exec. Preserve the shell program as written, including quoted paths,
+	// redirections and conditions. /S removes only our outer quote pair.
+	if cmd.SysProcAttr.CmdLine == "" && strings.EqualFold(filepath.Base(cmd.Path), "cmd.exe") && len(cmd.Args) == 5 &&
+		strings.EqualFold(cmd.Args[1], "/D") && strings.EqualFold(cmd.Args[2], "/S") && strings.EqualFold(cmd.Args[3], "/C") {
+		cmd.SysProcAttr.CmdLine = syscall.EscapeArg(cmd.Path) + ` /D /S /C "` + cmd.Args[4] + `"`
+	}
 }
 func terminateProcess(cmd *exec.Cmd) error {
 	if cmd.Process == nil {

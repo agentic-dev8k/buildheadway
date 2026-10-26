@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global ./buildheadway-0.19.1.tgz
+npm install --global ./buildheadway-0.19.2.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -51,7 +51,7 @@ When a failed worker changed source files, BuildHeadway checks and returns the p
 
 ## Installation and completion checks
 
-`buildheadway doctor` now diagnoses command resolution, native installation integrity, connection settings, project guidance and the verification shell. `buildheadway update --from PATH` upgrades from an extracted release. Releases built for a published repository also support `buildheadway update` and platform-specific internet installers. See [INSTALL.md](INSTALL.md) for Windows, macOS, Linux, update and troubleshooting instructions.
+`buildheadway doctor` now diagnoses command resolution, native installation integrity, connection settings, project guidance and the verification shell. It executes isolated passing and failing quoted-command probes before declaring that shell usable, with no model calls or project changes. `buildheadway update --from PATH` upgrades from an extracted release. Releases built for a published repository also support `buildheadway update` and platform-specific internet installers. See [INSTALL.md](INSTALL.md) for Windows, macOS, Linux, update and troubleshooting instructions.
 
 `buildheadway acceptance` and `/acceptance` show every retained requirement with its executable verification. Seniors connect requirements to checks, and completion is blocked until all coverage executes and passes. Checks that change source invalidate the round and cause all checks to run again. Root `AGENTS.md`, `CLAUDE.md` and `BUILDHEADWAY.md` guidance is shared with all agents. See [HARNESS.md](HARNESS.md) for project acceptance configuration and the completion rules.
 

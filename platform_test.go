@@ -25,8 +25,14 @@ func TestOSSpecificAgentLocationsAndWindowsShims(t *testing.T) {
 	os.MkdirAll(folder, 0755)
 	path := filepath.Join(folder, "codex.CMD")
 	os.WriteFile(path, []byte("shim"), 0644)
-	if got := FindInDirs("codex", []string{folder}, "windows"); got != path {
-		t.Fatalf("Windows executable not discovered: %s", got)
+	got := FindInDirs("codex", []string{folder}, "windows")
+	wantInfo, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotInfo, err := os.Stat(got)
+	if err != nil || !os.SameFile(wantInfo, gotInfo) {
+		t.Fatalf("Windows executable not discovered: %s (%v)", got, err)
 	}
 	if got := FindInDirs("codex", []string{folder}, "linux"); got != "" {
 		t.Fatal("Linux treated a Windows shim as native")

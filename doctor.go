@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type Diagnostic struct {
@@ -106,13 +107,55 @@ func Diagnose(ctx context.Context, paths Paths, repo string) DoctorReport {
 	} else {
 		add("project", "ok", "Project configuration and guidance are readable", "")
 	}
-	if _, err := exec.LookPath(ShellCommand("")[0]); err != nil {
-		add("verification shell", "error", err.Error(), "Restore the operating system's default command shell.")
-	} else {
-		add("verification shell", "ok", ShellCommand("")[0], "")
-	}
+	report.Checks = append(report.Checks, verificationShellDiagnostic(ctx))
 	report.Agents = ScanAgents(ctx, paths).Agents
 	return report
+}
+
+// A resolvable shell can still misparse quoted checks or hide their failure.
+// Probe real execution in an isolated temporary directory without user commands,
+// project writes, model calls or persistent configuration changes.
+func verificationShellDiagnostic(ctx context.Context) Diagnostic {
+	const name = "verification shell"
+	if err := ctx.Err(); err != nil {
+		return Diagnostic{name, "info", "Execution probe interrupted: " + err.Error(), ""}
+	}
+	shell, err := exec.LookPath(ShellCommand("")[0])
+	fix := "Restore the operating system's default command shell; on Windows, check COMSPEC."
+	if err != nil {
+		return Diagnostic{name, "error", err.Error(), fix}
+	}
+	dir, err := os.MkdirTemp("", "buildheadway-shell-probe-")
+	if err != nil {
+		return Diagnostic{name, "warning", "Cannot create the shell probe: " + err.Error(), "Check write access to the operating system's temporary directory."}
+	}
+	defer os.RemoveAll(dir)
+	const marker = "buildheadway-shell-ok"
+	command := `test "$(cat "probe file.txt")" = "probe value with spaces" && printf "%s" ` + marker
+	if runtime.GOOS == "windows" {
+		command = `findstr /x /c:"probe value with spaces" "probe file.txt" >nul && echo ` + marker
+	}
+	for index, content := range []string{"probe value with spaces\n", "different value\n"} {
+		if err := os.WriteFile(filepath.Join(dir, "probe file.txt"), []byte(content), 0600); err != nil {
+			return Diagnostic{name, "warning", "Cannot prepare the shell probe: " + err.Error(), "Check write access to the operating system's temporary directory."}
+		}
+		result, err := RunProcess(ctx, ShellCommand(command), dir, filepath.Join(dir, fmt.Sprintf("probe-%d.log", index)), "", nil, 3*time.Second, nil)
+		if ctx.Err() != nil {
+			return Diagnostic{name, "info", "Execution probe interrupted: " + ctx.Err().Error(), ""}
+		}
+		output := strings.TrimSpace(result.Output)
+		if err != nil || (index == 0 && (result.Code != 0 || output != marker)) || (index == 1 && (result.Code != 1 || output != "")) {
+			detail := fmt.Sprintf("%s: quoted-command/failure probe failed (exit %d)", shell, result.Code)
+			if err != nil {
+				detail += ": " + err.Error()
+			}
+			if output != "" {
+				detail += ": " + Clean(Tail(output, 512))
+			}
+			return Diagnostic{name, "error", detail, fix}
+		}
+	}
+	return Diagnostic{name, "ok", shell + ": quoted paths, redirection and failure propagation verified", ""}
 }
 func FormatDoctor(report DoctorReport) string {
 	var out strings.Builder

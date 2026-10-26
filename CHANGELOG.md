@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.2 — 2026-10-26
+
+- Preserved native Windows command-shell quoting for executable paths, argument quotes, redirection and conditions. Corrected checks still require actual success; failed checks remain failures. Added native Windows subprocess regressions.
+- Doctor now executes isolated passing and failing quoted checks before reporting the verification shell as usable, with cancellation and bounded process timeouts. It leaves project files and saved settings unchanged.
+- Fixed the agent-discovery regression assertion on case-insensitive filesystems: Windows shim lookup must resolve to the same file, even when the returned path uses different casing. The test still rejects Windows-only shims as Linux executables.
+- Added per-branch CI concurrency so a newer verification run cancels superseded checks while the current source still receives the complete native matrix.
+- Retained the approved artwork, source/issue links, compatibility settings and existing runtime harness gates.
+
 ## 0.19.1 — 2026-10-26
 
 - Integrated the approved BuildHeadway logo and square icon, added branding documentation and displayed the full logo in the README.

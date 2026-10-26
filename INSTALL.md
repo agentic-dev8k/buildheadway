@@ -7,7 +7,7 @@ BuildHeadway 0.11 is a terminal program for Windows, macOS, and Linux, on x64 an
 With Node.js 20+ and npm, run this in the folder containing the downloaded package:
 
 ```sh
-npm install --global ./buildheadway-0.19.1.tgz
+npm install --global ./buildheadway-0.19.2.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -59,7 +59,7 @@ After the project has a published GitHub release and was built with its reposito
 
 ```sh
 buildheadway update
-buildheadway update --version 0.19.1
+buildheadway update --version 0.19.2
 ```
 
 The updater resolves `latest` once, then downloads the binary and manifest from that exact release. A new release appearing during download cannot mix their versions. A local build without a repository explains how to update offline instead.
