@@ -88,6 +88,9 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(diagnostic.install_method, 'npm');
   assert.equal(diagnostic.version, pkg.version);
   assert.ok(diagnostic.checks.some(c => c.name === 'project' && c.status === 'ok'));
+  const shell = diagnostic.checks.find(c => c.name === 'verification shell');
+  assert.equal(shell?.status, 'ok', `installed shell execution probes failed: ${JSON.stringify(shell)}`);
+  assert.match(shell.detail, /failure propagation verified/);
   assert.match(buildheadway(['update']), /managed by npm/);
   const workflows = JSON.parse(buildheadway(['workflows', '--json']));
   assert.ok(workflows.some(w => w.name === 'review' && w.kind === 'builtin'));
