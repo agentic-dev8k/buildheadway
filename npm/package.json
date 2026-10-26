@@ -1,6 +1,6 @@
 {
   "name": "buildheadway",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "description": "BuildHeadway terminal coding agent: communicating senior teams, free workers, and verified repair loops.",
   "license": "MIT",
   "bin": {
@@ -43,5 +43,13 @@
     "terminal",
     "cli",
     "ai"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentic-dev8k/buildheadway.git"
+  },
+  "homepage": "https://github.com/agentic-dev8k/buildheadway",
+  "bugs": {
+    "url": "https://github.com/agentic-dev8k/buildheadway/issues"
+  }
 }
