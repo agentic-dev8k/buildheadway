@@ -11,7 +11,9 @@ import (
 
 func checkFixtureCommand() string {
 	if runtime.GOOS == "windows" {
-		return `findstr /x /c:"good" result.txt >nul`
+		// Match the exact LF-only bytes written by the worker fixture. FINDSTR
+		// full-line matching assumes CRLF and cannot establish this contract.
+		return `powershell.exe -NoLogo -NoProfile -NonInteractive -Command "if ((Get-Content -Raw -LiteralPath 'result.txt' -ErrorAction Stop) -ceq ('good' + [char]10)) { exit 0 } else { exit 1 }"`
 	}
 	return `test "$(cat result.txt)" = good`
 }

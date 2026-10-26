@@ -42,7 +42,7 @@ func TestOSSpecificAgentLocationsAndWindowsShims(t *testing.T) {
 	if dirs[0] != folder {
 		t.Fatalf("Windows PATH was split incorrectly: %v", dirs)
 	}
-	macDirs := strings.Join(SearchDirs(paths, "darwin", root, ""), "\n")
+	macDirs := filepath.ToSlash(strings.Join(SearchDirs(paths, "darwin", root, ""), "\n"))
 	if !strings.Contains(macDirs, "/opt/homebrew/bin") || !strings.Contains(macDirs, "/usr/local/bin") {
 		t.Fatal("missing Homebrew locations")
 	}

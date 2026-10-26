@@ -136,6 +136,9 @@ func verificationShellDiagnostic(ctx context.Context) Diagnostic {
 		command = `findstr /x /c:"probe value with spaces" "probe file.txt" >nul && echo ` + marker
 	}
 	for index, content := range []string{"probe value with spaces\n", "different value\n"} {
+		if runtime.GOOS == "windows" {
+			content = strings.ReplaceAll(content, "\n", "\r\n")
+		}
 		if err := os.WriteFile(filepath.Join(dir, "probe file.txt"), []byte(content), 0600); err != nil {
 			return Diagnostic{name, "warning", "Cannot prepare the shell probe: " + err.Error(), "Check write access to the operating system's temporary directory."}
 		}

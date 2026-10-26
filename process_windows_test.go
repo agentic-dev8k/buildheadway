@@ -23,7 +23,7 @@ func TestWindowsShellPreservesQuotedChecksAndFailure(t *testing.T) {
 	for _, test := range []struct {
 		name, content string
 		passed        bool
-	}{{"matches", "good phrase\n", true}, {"rejects wrong output", "wrong phrase\n", false}} {
+	}{{"matches", "good phrase\r\n", true}, {"rejects wrong output", "wrong phrase\r\n", false}} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := os.WriteFile(path, []byte(test.content), 0600); err != nil {
 				t.Fatal(err)
