@@ -3,8 +3,8 @@
 - Added the approved transparent logo, square icon and white-background logo under assets/brand. README and BRANDING.md reference local included files. Original image bytes are preserved.
 - Packaging copies the three approved assets to the native distribution and source archive. npm's file list includes them and BRANDING.md. Installed-package coverage compares the exact image bytes against source, checks the README image reference, and confirms that missing/invalid branding fails the packaging check before restoring the asset.
 - Runtime behavior is unchanged except the version constant. This branding patch does not rerun the complete Go race suite; the completed 0.19.0 runtime checks remain recorded below. The release builder runs six application builds, the native Linux self-test, installer fixture checks and actual npm install/launch/upgrade/integrity/uninstall checks. Its --skip-tests flag is explicit, not a claim that the Go suite ran again.
-- No authenticated model inference, native Windows/macOS runtime testing, npm publication or GitHub push is claimed. GitHub sign-in is deferred until the user is ready; secrets must not be sent in chat.
-- Continuation: preserve the approved artwork and local README references in future releases. Keep the selected BuildHeadway name, earlier-brand compatibility and all existing harness gates. The intended repository remains agentic-dev8k/buildheadway; creating/pushing it is still pending access.
+- No authenticated model inference, hosted native Windows/macOS runtime testing or npm publication is claimed for this patch. The public source repository is now [agentic-dev8k/buildheadway](https://github.com/agentic-dev8k/buildheadway); the retained workflows run native CI separately. Their results must be inspected before making a native CI success claim.
+- Continuation: preserve the approved artwork and local README references in future releases. Keep the selected BuildHeadway name, earlier-brand compatibility and all existing harness gates. Fetch the latest repository before continuing; an older source bundle must not overwrite newer public commits.
 
 # BuildHeadway 0.19.0 validation — 2026-10-26
 

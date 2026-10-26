@@ -1,6 +1,6 @@
 # BuildHeadway
 
-The user selected BuildHeadway on 26 October 2026, replacing the earlier Forge/Codentrail names. Headway means progress toward a goal. The terminal command and npm package are `buildheadway`. The intended repository is `agentic-dev8k/buildheadway`; creation and push are pending an accessible repository. No public npm release is claimed.
+The user selected BuildHeadway on 26 October 2026, replacing the earlier Forge/Codentrail names. Headway means progress toward a goal. The terminal command and npm package are `buildheadway`. The public source repository is [agentic-dev8k/buildheadway](https://github.com/agentic-dev8k/buildheadway). No public npm release is claimed.
 
 ## Existing installations and projects
 

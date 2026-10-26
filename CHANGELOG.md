@@ -4,6 +4,7 @@
 
 - Integrated the approved BuildHeadway logo and square icon, added branding documentation and displayed the full logo in the README.
 - Included the artwork in native/source ZIP and npm packages. Package checks reject missing or invalid brand images; installed-package coverage verifies that the exact approved files survive npm packing and installation.
+- Added a brand-asset index and public repository links; npm metadata identifies the source and issue tracker.
 - This is a branding and packaging patch; coding-agent runtime behavior is unchanged apart from the release version.
 
 

@@ -45,4 +45,4 @@ The build also creates `dist/release-assets/` with six executables, `SHA256SUMS`
 
 The native verification workflow builds on Windows, macOS and Linux and retains the artifacts. The separate release workflow creates a **draft** release only when manually dispatched with a matching version tag, after its own three-OS native verification passes. Review and publish that draft before advertising internet install/update commands. npm publication remains a separate account-authorized action.
 
-The selected product name must be applied consistently before the first public release. See NAMING.md; the current build continues to use BuildHeadway until that decision is made.
+The selected product name is BuildHeadway and the source repository is `agentic-dev8k/buildheadway`. Keep that identity consistent in release metadata and artwork; see NAMING.md and BRANDING.md.

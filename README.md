@@ -315,7 +315,7 @@ This downloadable build is unsigned. OS trust/signing prompts may apply. macOS n
 
 ## Source and rebuilding
 
-Source is included under source/. It uses Go and the MIT-licensed Bubble Tea terminal framework. No GitHub repository or package-registry publication is claimed.
+The source repository is [agentic-dev8k/buildheadway](https://github.com/agentic-dev8k/buildheadway). Downloadable distribution bundles also include it under `source/`. BuildHeadway uses Go and the MIT-licensed Bubble Tea terminal framework. The npm package has not been published to the registry.
 
 ~~~sh
 go test -buildvcs=false ./...
