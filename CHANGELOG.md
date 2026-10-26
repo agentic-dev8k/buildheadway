@@ -6,6 +6,7 @@
 - Doctor now executes isolated passing and failing quoted checks before reporting the verification shell as usable, with cancellation and bounded process timeouts. It leaves project files and saved settings unchanged.
 - Made native shell fixtures explicit about CRLF and LF contracts, and normalized host path separators in cross-OS discovery assertions. Windows worker fixtures verify exact content through the native PowerShell reader.
 - Fixed the agent-discovery regression assertion on case-insensitive filesystems: Windows shim lookup must resolve to the same file, even when the returned path uses different casing. The test still rejects Windows-only shims as Linux executables.
+- Removed the Windows installer dependency on the Get-FileHash utility cmdlet: .NET streams the binary through SHA-256, and native integration coverage shadows the old cmdlet while still rejecting a tampered binary.
 - Added per-branch CI concurrency so a newer verification run cancels superseded checks while the current source still receives the complete native matrix.
 - Retained the approved artwork, source/issue links, compatibility settings and existing runtime harness gates.
 

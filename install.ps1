@@ -45,7 +45,18 @@ try {
     $buildheadwayManifest = Join-Path $buildheadwayRoot 'SHA256SUMS'
     if (!(Test-Path -LiteralPath $buildheadwayBinary -PathType Leaf)) { throw 'The native BuildHeadway application is missing from this release.' }
     $buildheadwayHashes = @(Get-Content -LiteralPath $buildheadwayManifest | Where-Object { ($_ -split '\s+')[1] -eq $buildheadwayRelative })
-    $buildheadwayActual = (Get-FileHash -LiteralPath $buildheadwayBinary -Algorithm SHA256).Hash
+    # Windows PowerShell can inherit a PSModulePath from PowerShell 7 that
+    # does not expose Get-FileHash. Hash the file directly with the .NET API
+    # in both shells, retaining streaming SHA-256 verification.
+    $buildheadwayHasher = [Security.Cryptography.SHA256]::Create()
+    $buildheadwayStream = $null
+    try {
+        $buildheadwayStream = [IO.File]::OpenRead($buildheadwayBinary)
+        $buildheadwayActual = [BitConverter]::ToString($buildheadwayHasher.ComputeHash($buildheadwayStream)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        if ($buildheadwayStream) { $buildheadwayStream.Dispose() }
+        $buildheadwayHasher.Dispose()
+    }
     if ($buildheadwayHashes.Count -ne 1 -or ($buildheadwayHashes[0] -split '\s+')[0] -ne $buildheadwayActual) { throw 'BuildHeadway failed integrity verification. Download the release again.' }
     $buildheadwayPreviousRepo = $env:BUILDHEADWAY_RELEASE_REPOSITORY
     try {
