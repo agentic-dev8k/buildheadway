@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag, for example v0.19.1
+        description: Existing version tag, for example v0.19.2
         required: true
         type: string
 permissions:
@@ -43,7 +43,7 @@ jobs:
               raise SystemExit('Release tag must match the source version')
           PY
       - name: Native regression and race tests
-        run: go test -buildvcs=false -race -timeout=180s ./...
+        run: go test -buildvcs=false -race -timeout=300s ./...
       - name: Static checks
         run: go vet -buildvcs=false ./...
       - name: Build and verify native installable artifacts

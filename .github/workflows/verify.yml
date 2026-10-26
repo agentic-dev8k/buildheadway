@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   native-tests:
     strategy:
@@ -23,8 +26,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - name: Native shell and discovery regressions
+        run: go test -buildvcs=false -race -v -count=1 -timeout=60s -run 'TestWindowsShell|TestDoctorRejectsShell|TestVerificationShellDiagnostic|TestOSSpecificAgentLocationsAndWindowsShims' .
       - name: Native unit and install integration tests
-        run: go test -buildvcs=false -race -v ./...
+        run: go test -buildvcs=false -race -v -timeout=300s ./...
       - name: Fresh private Windows shell setup
         if: runner.os == 'Windows'
         env:
