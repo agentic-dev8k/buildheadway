@@ -1,0 +1,6 @@
+/dist/
+*.exe
+*.test
+/.forge/
+/node_modules/
+*.tgz
