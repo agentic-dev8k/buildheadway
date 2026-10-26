@@ -1,0 +1,57 @@
+name: Native verification and release artifacts
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.2'
+          cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Native unit and install integration tests
+        run: go test -buildvcs=false -race -v ./...
+      - name: Fresh private Windows shell setup
+        if: runner.os == 'Windows'
+        env:
+          BUILDHEADWAY_BOOTSTRAP_TESTS: '1'
+        run: go test -buildvcs=false -run TestPrivateWindowsGitBootstrap -v -count=1 .
+      - name: Build and test the real npm terminal package and native offline loop
+        run: python3 release.py --output dist --skip-tests
+  package:
+    needs: native-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.2'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Build six native targets and include source/licenses
+        run: python3 release.py --output dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: BuildHeadway-native-release
+          path: |
+            dist/buildheadway.zip
+            dist/*.tgz
+            dist/release-assets/*
+          if-no-files-found: error
