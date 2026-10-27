@@ -8,6 +8,7 @@ const os = require('node:os');
 const { execFileSync } = require('node:child_process');
 const { checkPackage } = require('../check-package.cjs');
 const { binaryName } = require('../buildheadway.cjs');
+const { checkDocs, requiredDocs } = require('../check-docs.cjs');
 
 const source = path.resolve(__dirname, '../..');
 const stage = process.env.BUILDHEADWAY_PACKAGE_DIR || path.join(source, 'dist', 'BuildHeadway');
@@ -66,7 +67,16 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   const installed = path.join(prefix, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', pkg.name);
   assert.ok(fs.existsSync(path.join(installed, 'bin', binaryName())));
   assert.match(fs.readFileSync(path.join(installed, 'README.md'), 'utf8'), /assets\/brand\/buildheadway-logo-on-white-v1\.png/);
-  assert.ok(fs.existsSync(path.join(installed, 'BRANDING.md')));
+  checkDocs(installed);
+  for (const file of requiredDocs) {
+    assert.deepEqual(fs.readFileSync(path.join(installed, file)), fs.readFileSync(path.join(source, file)), `Missing or changed installed guide: ${file}`);
+  }
+  const harnessGuide = path.join(installed, 'docs/harness.md');
+  const harnessBytes = fs.readFileSync(harnessGuide);
+  try {
+    fs.unlinkSync(harnessGuide);
+    assert.throws(() => checkPackage(installed), /Missing documentation/, 'a release must retain its linked guides');
+  } finally { fs.writeFileSync(harnessGuide, harnessBytes); }
   for (const file of ['buildheadway-logo-v1.png', 'buildheadway-icon-v1.png', 'buildheadway-logo-on-white-v1.png']) {
     const relative = path.join('assets/brand', file);
     assert.deepEqual(fs.readFileSync(path.join(installed, relative)), fs.readFileSync(path.join(source, relative)), `Missing or changed installed brand asset: ${file}`);

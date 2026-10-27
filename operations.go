@@ -50,17 +50,16 @@ func runVerification(ctx context.Context, paths Paths, repo, dir string, command
 			argv = []string{executable, "--internal-demo-check", repo}
 		}
 		logPath := filepath.Join(dir, fmt.Sprintf("%s-check-%02d.log", time.Now().UTC().Format("150405.000000"), index+1))
-		result, err := RunProcess(ctx, argv, repo, logPath, "", setEnv(ToolEnv(paths), "CI", "1"), timeout, nil)
+		started := time.Now()
+		result, runErr := RunProcess(ctx, argv, repo, logPath, "", setEnv(ToolEnv(paths), "CI", "1"), timeout, nil)
+		result, evidence := verificationEvidence(ctx, result, runErr, started)
+		check := CheckResult{ExecutionEvidence: evidence, Command: command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(logPath), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}
+		recordErr := record(check)
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return errors.Join(ctx.Err(), recordErr)
 		}
-		if err != nil {
-			result.Code = 124
-			result.Output += "\n" + err.Error()
-		}
-		check := CheckResult{Command: command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(logPath), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}
-		if err := record(check); err != nil {
-			return err
+		if recordErr != nil {
+			return recordErr
 		}
 		text := "Passed"
 		if result.Code != 0 {
@@ -134,7 +133,7 @@ func CheckProject(ctx context.Context, paths Paths, repo string, emit Emit) (Ver
 		report.Status = "failed"
 	}
 	for _, result := range report.Results {
-		if result.ExitCode != 0 || result.SourceChanged {
+		if !result.Passed() {
 			report.Status = "failed"
 		}
 	}
@@ -156,6 +155,7 @@ func FormatVerification(report VerificationReport) string {
 	for _, result := range report.Results {
 		fmt.Fprintf(&out, "exit %d · %s\n", result.ExitCode, result.Command)
 		fmt.Fprint(&out, sourceChangeNotice(result.SourceChanged))
+		fmt.Fprint(&out, executionNotice(result.ExecutionEvidence))
 		fmt.Fprint(&out, logEvidence(result.Log, result.OutputTruncated || result.ExitCode != 0 && len(result.Output) > 1600))
 		if result.ExitCode != 0 {
 			fmt.Fprintln(&out, Tail(result.Output, 1600))
@@ -164,6 +164,7 @@ func FormatVerification(report VerificationReport) string {
 	for _, hook := range report.Hooks {
 		fmt.Fprintf(&out, "hook %s · %s · exit %d\n", hook.Name, hook.Event, hook.ExitCode)
 		fmt.Fprint(&out, sourceChangeNotice(hook.SourceChanged))
+		fmt.Fprint(&out, executionNotice(hook.ExecutionEvidence))
 		fmt.Fprint(&out, logEvidence(hook.Log, hook.OutputTruncated || hook.ExitCode != 0 && len(hook.Output) > 1600))
 		if hook.ExitCode != 0 {
 			fmt.Fprintln(&out, Tail(hook.Output, 1600))
@@ -216,12 +217,12 @@ func MarkdownReport(state State) string {
 	}
 	out.WriteString("\n## Verification\n\n")
 	for _, check := range state.CheckResults {
-		out.WriteString(fenced(fmt.Sprintf("%s\nExit code: %d\n%s%s%s", check.Command, check.ExitCode, sourceChangeNotice(check.SourceChanged), logEvidence(check.Log, check.OutputTruncated), check.Output)) + "\n")
+		out.WriteString(fenced(fmt.Sprintf("%s\nExit code: %d\n%s%s%s%s", check.Command, check.ExitCode, executionNotice(check.ExecutionEvidence), sourceChangeNotice(check.SourceChanged), logEvidence(check.Log, check.OutputTruncated), check.Output)) + "\n")
 	}
 	if len(state.HookResults) > 0 {
 		out.WriteString("\n## Verification hooks\n\n")
 		for _, hook := range state.HookResults {
-			out.WriteString(fenced(fmt.Sprintf("%s · %s\n%s\nExit code: %d\n%s%s%s", hook.Name, hook.Event, hook.Command, hook.ExitCode, sourceChangeNotice(hook.SourceChanged), logEvidence(hook.Log, hook.OutputTruncated), hook.Output)))
+			out.WriteString(fenced(fmt.Sprintf("%s · %s\n%s\nExit code: %d\n%s%s%s%s", hook.Name, hook.Event, hook.Command, hook.ExitCode, executionNotice(hook.ExecutionEvidence), sourceChangeNotice(hook.SourceChanged), logEvidence(hook.Log, hook.OutputTruncated), hook.Output)))
 		}
 	}
 	out.WriteString("\n## Recent activity\n\n")

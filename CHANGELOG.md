@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20.0 — 2026-10-27
+
+- Reorganized detailed guides under `docs/`, with a documentation index, a concise root README and contributor instructions. Preserved installation, harness, extension, identity and historical validation material. Packages and source archives retain the guides and approved artwork.
+- Added local file/heading link checks and installed-package regressions that reject missing documentation. Release packaging and native CI run these checks.
+- Retained executed verification evidence on cancellation, including partial output, the exact log reference, elapsed time and a structured failure cause. Commands and hooks distinguish child exit failures, command timeouts, upstream cancellation and execution/setup failures.
+- Interrupted goals save failed evidence and rerun verification before obtaining fresh senior approval on resume. Acceptance, hook and completion gates reject execution failures even if a malformed checkpoint says exit zero. Existing budget, price, source-consistency and senior-review rules remain enforced.
+- Kept checkpoint v12: new execution fields are additive and old exit results remain readable without inventing durations or past failure classifications.
+
 ## 0.19.2 — 2026-10-26
 
 - Preserved native Windows command-shell quoting for executable paths, argument quotes, redirection and conditions. Corrected checks still require actual success; failed checks remain failures. Added native Windows subprocess regressions.

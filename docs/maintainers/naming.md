@@ -14,4 +14,4 @@ Native BuildHeadway installations use `buildheadway-installation.json` in the se
 
 ## Approved artwork
 
-The H-and-forward-arrow logo and matching square icon are included under `assets/brand/`. See [BRANDING.md](BRANDING.md) for the approved files. Keep these assets when packaging future source and npm releases.
+The H-and-forward-arrow logo and matching square icon are included under `assets/brand/`. See [Branding](../branding.md) for the approved files. Keep these assets when packaging future source and npm releases.

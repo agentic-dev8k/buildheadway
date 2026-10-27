@@ -84,6 +84,21 @@ Agents can route questions, challenges and suggestions to other seniors or verif
 
 The harness enforces that recorded requirements have executed passing checks and fresh review. It cannot prove that a test covers all behavior, that every requirement was inferred correctly, or that a passing application has no defects. Reviewers still inspect real files and test coverage. A goal that requires browser interaction, an external service or native OS behavior needs suitable project checks and access to that environment.
 
+## Interrupted verification evidence (0.20)
+
+Commands and hooks save `duration_ms`, the exact process-log filename, bounded output and a `failure_kind` when they fail. Cancelling a running check retains its partial diagnostics before the run pauses. Cancelling before a command is attempted does not invent an execution result. `buildheadway check --json`, saved checkpoints, acceptance evidence, agent prompts, status and exports preserve these fields.
+
+| Failure kind | Meaning | Recorded code |
+| --- | --- | --- |
+| `exit` | The child returned a real nonzero exit status | Actual exit status |
+| `timeout` | The command exceeded its own time limit | 124 |
+| `cancelled` | The upstream context stopped the command, including a run deadline | 130 |
+| `execution` | The harness could not reliably start, wait for, or capture the command | -1 |
+
+Codes 124, 130 and -1 are harness outcomes for those failures, not claims about the child's exit status. A command that itself exits 124 is an `exit` failure, not an inferred timeout. A log filename identifies the attempted log location; setup failures can prevent that file from being created, and log inspection reports that absence rather than inventing output. Durations measure the invocation on this host; older records omit them.
+
+Every failure blocks passing acceptance, hook gates and completion. Resume reruns checks against current source and obtains fresh senior review. Saved failure metadata cannot be turned into passing evidence merely by changing its exit code to zero. The fields are additive to checkpoint v12; historical executions keep their recorded outputs without guessed failure classifications. These diagnostics do not automatically retry authentication, pricing, quota or policy blockers.
+
 ## Large command output
 
 Version 0.13 retains complete subprocess logs on disk but captures at most the last 8 MiB in memory. Verification still uses the actual command exit code, and reports retain bounded excerpts. Oversized model replies and model catalogs are rejected rather than parsed from a tail. Codex last-message files have the same size limit. An output-limit blocker requires inspecting the saved log and reducing the assignment before resume; it does not silently switch models because cost or completion evidence may have been omitted. These limits bound captured output, not disk log size or the model provider's own memory use.

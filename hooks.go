@@ -21,6 +21,7 @@ type ProjectHook struct {
 	Platforms      []string `json:"platforms,omitempty"`
 }
 type HookResult struct {
+	ExecutionEvidence
 	Name            string `json:"name"`
 	Event           string `json:"event"`
 	Command         string `json:"command"`
@@ -30,6 +31,11 @@ type HookResult struct {
 	OutputTruncated bool   `json:"output_truncated,omitempty"`
 	SourceChanged   bool   `json:"source_changed,omitempty"`
 }
+
+func (h HookResult) Passed() bool {
+	return h.ExitCode == 0 && !h.SourceChanged && h.FailureKind == "" && h.Error == ""
+}
+
 type HookInput struct {
 	Version int           `json:"version"`
 	Event   string        `json:"event"`
@@ -83,7 +89,7 @@ func hooksPassed(config ProjectConfig, results []HookResult) bool {
 		found := false
 		for _, result := range results {
 			if result.Name == hook.Name && result.Event == hook.Event && result.Command == hook.Command {
-				if result.ExitCode != 0 || result.SourceChanged {
+				if !result.Passed() {
 					return false
 				}
 				found = true
@@ -119,13 +125,15 @@ func runHooks(ctx context.Context, paths Paths, repo, dir string, config Project
 		env = setEnv(setEnv(env, "FORGE_HOOK_EVENT", hook.Event), "FORGE_PROJECT", repo)
 		env = setEnv(setEnv(env, "CODENTRAIL_HOOK_EVENT", hook.Event), "CODENTRAIL_PROJECT", repo)
 		log := fmt.Sprintf("%s/%s-hook-%s.log", dir, time.Now().UTC().Format("150405.000000000"), hook.Name)
+		started := time.Now()
 		result, runErr := RunProcess(ctx, ShellCommand(hook.Command), repo, log, string(data)+"\n", env, time.Duration(seconds)*time.Second, nil)
-		if runErr != nil {
-			result.Code = 124
-			result.Output += "\n" + runErr.Error()
+		result, evidence := verificationEvidence(ctx, result, runErr, started)
+		recordErr := record(HookResult{ExecutionEvidence: evidence, Name: hook.Name, Event: hook.Event, Command: hook.Command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(log), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000})
+		if ctx.Err() != nil {
+			return errors.Join(ctx.Err(), recordErr)
 		}
-		if err := record(HookResult{Name: hook.Name, Event: hook.Event, Command: hook.Command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(log), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}); err != nil {
-			return err
+		if recordErr != nil {
+			return recordErr
 		}
 		emit(Event{Kind: "check-result", Text: fmt.Sprintf("Hook %s · exit %d", hook.Name, result.Code)})
 		if ctx.Err() != nil {
@@ -225,7 +233,7 @@ func FormatHooks(config ProjectConfig) string {
 		fmt.Fprintf(&out, "%s · %s · %s\n  %s\n", hook.Name, hook.Event, platforms, hook.Command)
 	}
 	if len(config.Hooks) == 0 {
-		out.WriteString("No hooks configured. See EXTENSIONS.md for examples.\n")
+		out.WriteString("No hooks configured. See docs/extensions.md for examples.\n")
 	}
 	return strings.TrimSpace(out.String())
 }

@@ -394,7 +394,7 @@ func CompletionAllowed(state State, answer Decision) bool {
 	}
 	executed := map[string]bool{}
 	for _, result := range state.CheckResults {
-		if result.ExitCode != 0 || result.SourceChanged {
+		if !result.Passed() {
 			return false
 		}
 		executed[result.Command] = true
