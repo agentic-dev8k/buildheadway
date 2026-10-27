@@ -122,6 +122,14 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   fs.writeFileSync(path.join(runDir, 'state.json'), JSON.stringify(checkpoint));
   fs.writeFileSync(path.join(project, '.forge/latest.json'), JSON.stringify({ run_id: runID }));
   assert.equal(JSON.parse(buildheadway(['status', '--json'])).goal, checkpoint.goal);
+  const originalCheckpoint = fs.readFileSync(path.join(runDir, 'state.json'));
+  const pauseRequest = JSON.parse(buildheadway(['pause', '--json', runID]));
+  assert.equal(pauseRequest.run_id, runID);
+  assert.match(pauseRequest.id, /^pause-/);
+  assert.deepEqual(JSON.parse(buildheadway(['pause', '--json', runID])), pauseRequest, 'duplicate pause requests must coalesce');
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), originalCheckpoint, 'a second terminal must not rewrite the controller checkpoint');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(runDir, 'control.json'), 'utf8')).pause.id, pauseRequest.id);
+  assert.throws(() => buildheadway(['pause', '--json', '../invalid']), error => error.status !== 0);
   assert.deepEqual(JSON.parse(buildheadway(['routing', '--json'])).models, []);
   assert.match(buildheadway(['routing']), /No free-model routing history yet/);
   checkpoint.model_health = [{ role: 'worker', model: 'opencode/free', attempts: 3, successes: 2, failures: 1, consecutive_failures: 0, failure_kind: 'transient', last_error: '503 previously overloaded' }];
