@@ -119,6 +119,10 @@ func runMain(args []string) int {
 			return 0
 		case "workflow", "skill", "prompt":
 			return runWorkflowCommand(paths, args[1:])
+		case "extensions":
+			return runExtensionsCommand(paths, args[1:])
+		case "mcp":
+			return runMCPCommand(paths, args[1:])
 		case "logs":
 			return runLogsCommand(args[1:])
 		case "steer":
@@ -162,6 +166,8 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway discussion           Read the agents' saved conversation")
 		fmt.Println("  buildheadway resume [ID]          Recheck and continue saved work")
 		fmt.Println("  buildheadway pause [ID]           Pause a goal from another terminal")
+		fmt.Println("  buildheadway extensions          Inspect or create custom skills and prompts")
+		fmt.Println("  buildheadway mcp                 Configure and check external tool servers")
 		fmt.Println("  buildheadway status               Inspect the current goal")
 		fmt.Println("  buildheadway acceptance           Show evidence for each requirement")
 		fmt.Println("  buildheadway routing              Inspect free-model health and cooldowns")

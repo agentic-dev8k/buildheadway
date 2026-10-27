@@ -125,11 +125,19 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 			return nil, true
 		}
 		return m.startGoal(goal, false), true
-	case "/workflows", "/skills", "/prompts", "/hooks", "/steering":
+	case "/workflows", "/skills", "/prompts", "/hooks", "/steering", "/extensions", "/mcp":
 		return func() tea.Msg {
 			var formatted string
 			var err error
 			switch command {
+			case "/extensions":
+				var inventory ExtensionInventory
+				inventory, err = InspectExtensions(paths, repo)
+				formatted = FormatExtensions(inventory)
+			case "/mcp":
+				var config ProjectConfig
+				config, err = LoadProjectConfig(repo)
+				formatted = FormatMCPServers(config.MCPServers)
 			case "/hooks":
 				var config ProjectConfig
 				config, err = LoadProjectConfig(repo)

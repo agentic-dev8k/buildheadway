@@ -1,6 +1,6 @@
 # Contributing to BuildHeadway
 
-BuildHeadway is a Go terminal app. Node.js/npm and Python are needed only to build and validate distribution packages; connected coding agents manage their own runtimes and accounts.
+BuildHeadway is a Go terminal app requiring Go 1.25 or newer to build from source. Node.js/npm and Python are needed only to build and validate distribution packages; connected coding agents manage their own runtimes and accounts. Installed release packages need no Go compiler.
 
 From a source checkout:
 

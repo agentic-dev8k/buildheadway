@@ -6,6 +6,7 @@
 - [Terminal usage](usage.md): connect agents, run goals, steer work, inspect evidence, and manage queues.
 - [Harness and recovery](harness.md): acceptance coverage, verified free routing, source consistency, interruption, and review.
 - [Extensions](extensions.md): project workflows, templates, skills, and executable hooks.
+- [MCP servers](mcp.md): connect external tools, check servers, and manage agent access.
 
 ## Work on BuildHeadway
 

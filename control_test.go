@@ -248,7 +248,7 @@ func TestPausedQueueHoldsLaterGoalsAndResumesSameRun(t *testing.T) {
 
 func TestPausePreservesReportedProviderBlockers(t *testing.T) {
 	for _, role := range []string{"planner", "worker"} {
-		for _, blocker := range []error{costError{}, authError{"codex", "authentication failed"}, authError{"codex", "renew account access"}, errors.New("access denied by provider"), outputLimitError{}, errors.Join(context.Canceled, costError{})} {
+		for _, blocker := range []error{costError{}, authError{"codex", "authentication failed"}, authError{"codex", "renew account access"}, errors.New("access denied by provider"), outputLimitError{}, errors.Join(context.Canceled, costError{}), errors.Join(context.Canceled, mcpSetupError{"MCP setup requires attention"})} {
 			t.Run(role+"/"+modelFailureKind(blocker, false), func(t *testing.T) {
 				r, _ := fixtureRunner(t)
 				calls := 0

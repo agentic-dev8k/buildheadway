@@ -160,6 +160,45 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   const configPath = path.join(project, '.buildheadway.json');
   const config = JSON.parse(buildheadway(['config']));
   assert.equal(config.version, 1);
+  const custom = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
+  const extension = JSON.parse(custom(['extensions', 'init', '--json', 'api-check']));
+  assert.ok(fs.existsSync(extension.source));
+  assert.ok(JSON.parse(custom(['extensions', '--json'])).workflows.some(item => item.name === 'api-check'));
+  assert.match(custom(['workflow', '--preview', 'api-check', 'preserve persistence']), /preserve persistence/);
+  const extensionBytes = fs.readFileSync(extension.source);
+  assert.throws(() => custom(['extensions', 'init', 'api-check']), error => error.status !== 0);
+  assert.deepEqual(fs.readFileSync(extension.source), extensionBytes);
+  const mcpScript = path.join(project, 'MCP protocol fixture.cjs');
+  fs.writeFileSync(mcpScript, `
+    const readline = require('node:readline');
+    const fs = require('node:fs');
+    if (process.env.BUILDHEADWAY_MCP_PACKAGE_TOKEN !== 'package-secret') process.exit(2);
+    readline.createInterface({input:process.stdin}).on('line', line => {
+      const request = JSON.parse(line);
+      if (request.id === undefined) return;
+      let result;
+      if (request.method === 'initialize') result = {protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'package-mcp',version:'1'}};
+      else if (request.method === 'tools/list') result = {tools:[{name:'inspect',description:'Inspect fixture',inputSchema:{type:'object'}}]};
+      else if (request.method === 'tools/call') { fs.writeFileSync('.forge/unexpected-mcp-tool-call','called'); process.exit(3); }
+      else { process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,error:{code:-32601,message:'Method not found'}})+'\\n'); return; }
+      process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,result})+'\\n');
+    });
+  `);
+  env.BUILDHEADWAY_MCP_PACKAGE_TOKEN = 'package-secret';
+  const goalBeforeMCP = fs.readFileSync(path.join(runDir, 'state.json'));
+  custom(['mcp', 'add', '--env', 'BUILDHEADWAY_MCP_PACKAGE_TOKEN', '--timeout', '3', 'protocol', '--', process.execPath, mcpScript]);
+  const mcpReport = JSON.parse(custom(['mcp', 'check', '--json', 'protocol']));
+  assert.equal(mcpReport.connected, true);
+  assert.equal(mcpReport.server, 'package-mcp');
+  assert.equal(mcpReport.tools[0].name, 'inspect');
+  assert.equal(fs.existsSync(path.join(project, '.forge/unexpected-mcp-tool-call')), false);
+  assert.equal(fs.readFileSync(configPath, 'utf8').includes('package-secret'), false);
+  custom(['mcp', 'disable', 'protocol']);
+  assert.equal(JSON.parse(custom(['mcp', '--json'])).protocol.disabled, true);
+  assert.throws(() => custom(['mcp', 'check', 'protocol']), error => error.status !== 0);
+  custom(['mcp', 'enable', 'protocol']);
+  custom(['mcp', 'remove', 'protocol']);
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), goalBeforeMCP);
   assert.match(buildheadway(['hooks']), /No hooks configured/);
   const hookScript = "const fs=require('node:fs');const assert=require('node:assert/strict');const data=JSON.parse(fs.readFileSync(0,'utf8'));assert.equal(data.event,'after_check');assert.ok(data.checks.length);";
   fs.writeFileSync(path.join(project, 'hook.cjs'), hookScript);

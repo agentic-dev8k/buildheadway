@@ -4,6 +4,19 @@ BuildHeadway 0.10 adds reusable instructions and local automation to the existin
 
 ## Everyday commands
 
+Create a customizable extension from the terminal:
+
+```sh
+buildheadway extensions init api-review
+buildheadway extensions init --kind prompt release-notes
+buildheadway extensions init --user personal-debug
+buildheadway extensions
+```
+
+Edit the created `SKILL.md` or prompt, then run `buildheadway workflow NAME YOUR_REQUEST` or `/workflow NAME YOUR_REQUEST`. `--user` selects personal configuration; omission selects this project. Creation preserves existing files and rejects symlink directories. `/extensions` shows editable resource paths without starting models or tools. These use BuildHeadway's instruction-based workflows; Pi TypeScript modules are not loaded.
+
+External tools use `buildheadway mcp add`, `check`, `enable`, `disable` and `remove`. See [MCP servers](mcp.md) for examples, supported senior adapters, credentials and recovery boundaries.
+
 | In BuildHeadway | In another terminal | What it does |
 | --- | --- | --- |
 | `/workflows` | `buildheadway workflows` | List built-in and custom workflows with their sources |
