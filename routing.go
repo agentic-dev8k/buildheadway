@@ -125,6 +125,10 @@ func hardModelFailure(err error) bool {
 	if err == nil {
 		return false
 	}
+	var setup mcpSetupError
+	if errors.As(err, &setup) {
+		return true
+	}
 	switch modelFailureKind(err, false) {
 	case "auth", "cost", "policy", "output_limit":
 		return true

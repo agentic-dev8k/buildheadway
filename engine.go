@@ -499,6 +499,10 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		}
 		r.Emit(Event{Kind: "status", Text: status})
 		raw, err := r.invokeAgent(ctx, connection, prompt, label, true, "")
+		var setup mcpSetupError
+		if errors.As(err, &setup) {
+			return Decision{}, err
+		}
 		responseFailure := err == nil
 		if errors.Is(err, errSteering) && !hardModelFailure(err) {
 			return Decision{}, err
@@ -684,6 +688,10 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		r.Emit(Event{Kind: "status", Text: "Building: " + task.Title})
 		r.Emit(Event{Kind: "worker", Text: task.Title + " · " + model})
 		raw, err := r.invokeAgent(ctx, r.Settings.Worker, prompt, "worker", false, model)
+		var setup mcpSetupError
+		if errors.As(err, &setup) {
+			return result, err
+		}
 		responseFailure := err == nil
 		if err == nil {
 			texts, parseErr := ResponseTexts(raw)

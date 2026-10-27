@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global ./buildheadway-0.21.0.tgz
+npm install --global ./buildheadway-0.22.0.tgz
 cd my-project
 buildheadway
 ```
@@ -33,6 +33,8 @@ On first launch, select an installed senior agent and complete its own sign-in. 
 Inside the terminal, `/discussion` shows the agent conversation, `/acceptance` shows requirement coverage, `/steer TEXT` changes direction, and `/stop` saves progress. `/resume` continues it.
 
 From another terminal in the same project, `buildheadway pause` requests a saved pause. Inspect `buildheadway status`, then continue with `buildheadway resume`. Add a run ID to target a particular saved goal.
+
+Customize it with `buildheadway extensions init NAME` and connect external tools with `buildheadway mcp add`. See [extensions](docs/extensions.md) and [MCP connections](docs/mcp.md) for usage and supported agents.
 
 Completion requires executed passing checks, requirement coverage, unchanged checked source, and senior approval. BuildHeadway must stay running to work; it stops for interruption, configured budgets, or genuine access and provider blockers. Full-access goals use the attached agents' unattended tools; use `--access workspace` when that is appropriate for your goal. Read the [harness guide](docs/harness.md) for the boundaries of these controls.
 

@@ -17,21 +17,22 @@ import (
 )
 
 type ProjectConfig struct {
-	Acceptance            []AcceptanceCheck   `json:"acceptance,omitempty"`
-	Hooks                 []ProjectHook       `json:"hooks,omitempty"`
-	Version               int                 `json:"version"`
-	Instructions          string              `json:"instructions,omitempty"`
-	Checks                []string            `json:"checks"`
-	PlatformChecks        map[string][]string `json:"platform_checks,omitempty"`
-	ContextFiles          []string            `json:"context_files,omitempty"`
-	MaxCycles             int                 `json:"max_cycles,omitempty"`
-	MaxPlannerCalls       int                 `json:"max_planner_calls,omitempty"`
-	MaxWorkerCalls        int                 `json:"max_worker_calls,omitempty"`
-	MaxStalledCycles      *int                `json:"max_stalled_cycles,omitempty"`
-	MaxRuntimeSeconds     int                 `json:"max_runtime_seconds,omitempty"`
-	CheckTimeoutSeconds   int                 `json:"check_timeout_seconds"`
-	PlannerTimeoutSeconds int                 `json:"planner_timeout_seconds"`
-	WorkerTimeoutSeconds  int                 `json:"worker_timeout_seconds"`
+	MCPServers            map[string]MCPServer `json:"mcp_servers,omitempty"`
+	Acceptance            []AcceptanceCheck    `json:"acceptance,omitempty"`
+	Hooks                 []ProjectHook        `json:"hooks,omitempty"`
+	Version               int                  `json:"version"`
+	Instructions          string               `json:"instructions,omitempty"`
+	Checks                []string             `json:"checks"`
+	PlatformChecks        map[string][]string  `json:"platform_checks,omitempty"`
+	ContextFiles          []string             `json:"context_files,omitempty"`
+	MaxCycles             int                  `json:"max_cycles,omitempty"`
+	MaxPlannerCalls       int                  `json:"max_planner_calls,omitempty"`
+	MaxWorkerCalls        int                  `json:"max_worker_calls,omitempty"`
+	MaxStalledCycles      *int                 `json:"max_stalled_cycles,omitempty"`
+	MaxRuntimeSeconds     int                  `json:"max_runtime_seconds,omitempty"`
+	CheckTimeoutSeconds   int                  `json:"check_timeout_seconds"`
+	PlannerTimeoutSeconds int                  `json:"planner_timeout_seconds"`
+	WorkerTimeoutSeconds  int                  `json:"worker_timeout_seconds"`
 }
 
 func DefaultProjectConfig() ProjectConfig {
@@ -71,6 +72,9 @@ func LoadProjectConfig(repo string) (ProjectConfig, error) {
 	return config, ValidateProjectConfig(config)
 }
 func ValidateProjectConfig(config ProjectConfig) error {
+	if err := validateMCPServers(config.MCPServers); err != nil {
+		return err
+	}
 	if err := validateAcceptance(config.Acceptance); err != nil {
 		return err
 	}

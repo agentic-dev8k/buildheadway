@@ -263,11 +263,11 @@ func TestFigureOutUIQueueAndHelp(t *testing.T) {
 func TestMain(m *testing.M) {
 	if capture := os.Getenv("BUILDHEADWAY_TEST_ADAPTER_CAPTURE"); capture != "" {
 		if contains(os.Args[1:], "--help") {
-			os.Stdout.WriteString("--pure --format --model --file --dir --auto --no-mcp --no-approve --output-format --prompt --approval-mode")
+			os.Stdout.WriteString("--pure --format --model --file --dir --auto --no-mcp --no-approve --output-format --prompt --approval-mode --mcp-config --strict-mcp-config")
 			os.Exit(0)
 		}
 		input, _ := io.ReadAll(os.Stdin)
-		data, _ := json.Marshal(map[string]any{"args": os.Args[1:], "stdin": string(input), "permission": os.Getenv("OPENCODE_PERMISSION")})
+		data, _ := json.Marshal(map[string]any{"args": os.Args[1:], "stdin": string(input), "permission": os.Getenv("OPENCODE_PERMISSION"), "opencode_config": os.Getenv("OPENCODE_CONFIG_CONTENT")})
 		if err := os.WriteFile(capture, data, 0600); err != nil {
 			os.Exit(2)
 		}

@@ -306,6 +306,10 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	default:
 		return "", fmt.Errorf("unsupported agent adapter %s", connection.Backend)
 	}
+	args, env, err = r.prepareMCP(ctx, connection, planner, fullAccess, args, env)
+	if err != nil {
+		return "", err
+	}
 	timeout := 30 * time.Minute
 	if r.State.Config.WorkerTimeoutSeconds > 0 {
 		timeout = time.Duration(r.State.Config.WorkerTimeoutSeconds) * time.Second

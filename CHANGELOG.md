@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0 — 2026-10-27
+
+- Added project MCP configuration and terminal add/list/check/enable/disable/remove commands. Connection diagnostics use the official Go MCP SDK with real stdio/Streamable HTTP initialization and tool discovery, cancellation, bounded responses and credential-safe errors. Diagnostics do not invoke tools or models.
+- Forwarded configured MCP tools to full-access Codex, Claude and compatible OpenCode seniors through invocation-scoped settings. Free-worker model pins and plugin/delegation restrictions remain; restricted consultations receive no configured MCP tools. Unsupported senior adapters fail clearly. Setup failures remain blockers even when cancellation arrives, and do not trigger model fallback.
+- Added `extensions init` and `extensions list`, project/personal skill and prompt starters, and `/extensions` and `/mcp` inspection. Starters preserve existing files and reject symlink directories. Existing workflow expansion, hooks and harness gates remain in use.
+- Pinned server configurations with saved goals, retained other checks/budgets/acceptance settings during edits, and stored credential variable names rather than expanded values. Added real subprocess/HTTP/installed-package regressions and a packaged MCP guide.
+- Source builds now require Go 1.25+ for the pinned MCP SDK; installed packages still need no compiler and retain all six native targets. Checkpoint remains v12 with additive optional configuration.
+
 ## 0.21.0 — 2026-10-27
 
 - Added `buildheadway pause [RUN_ID]`, with project selection and JSON output, to save a pause request from another terminal without model access or overwriting the active checkpoint. Repeated and concurrent requests coalesce; completed goals refuse requests.
