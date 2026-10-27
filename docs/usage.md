@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global ./buildheadway-0.21.0.tgz
+npm install --global ./buildheadway-0.22.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
