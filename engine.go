@@ -156,6 +156,12 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 	if err := ensureIgnore(r.Repo); err != nil {
 		return err
 	}
+	controlCtx, stopControl, err := r.pauseContext(ctx)
+	if err != nil {
+		r.State.Status, r.State.Error, r.State.CheckedSnapshot = "blocked", err.Error(), ""
+		return errors.Join(err, r.checkpoint())
+	}
+	defer stopControl()
 	r.State.Status = "running"
 	r.State.Error = ""
 	r.State.Summary = ""
@@ -177,7 +183,7 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 	if err == nil {
 		var workCtx context.Context
 		var cancel context.CancelFunc
-		workCtx, cancel, err = r.runtimeContext(ctx)
+		workCtx, cancel, err = r.runtimeContext(controlCtx)
 		if err == nil {
 			err = r.loop(workCtx)
 			if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil && r.MaxRuntime > 0 {
@@ -186,18 +192,28 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 		}
 		cancel()
 	}
+	// A pause or damaged control file can cancel an active subprocess. Preserve
+	// independent provider/cost failures and cancellation from the original caller.
+	if errors.Is(err, context.Canceled) && !hardModelFailure(err) && ctx.Err() == nil && context.Cause(controlCtx) != nil {
+		err = context.Cause(controlCtx)
+	}
 	if err == nil {
 		return nil
 	}
 	r.State.Error = err.Error()
 	r.State.Status = "blocked"
 	var limit limitError
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) && !hardModelFailure(err) {
 		r.State.Status = "interrupted"
 		r.Emit(Event{Kind: "paused", Text: "Paused. Your progress is saved; use /resume."})
 	}
 	if errors.As(err, &limit) {
 		r.State.Status = "paused"
+	}
+	var pause runPauseError
+	if errors.As(err, &pause) {
+		r.State.Status = "paused"
+		r.note("pause-request", pause.request.ID)
 	}
 	if saveErr := r.checkpoint(); saveErr != nil {
 		return fmt.Errorf("%v; saving the checkpoint failed: %w", err, saveErr)
@@ -218,6 +234,9 @@ func (r *Runner) loop(ctx context.Context) error {
 func (r *Runner) runUntilPause(ctx context.Context) error {
 	for {
 		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := r.pausePending(); err != nil {
 			return err
 		}
 		if err := r.steeringPending(); err != nil {
@@ -481,7 +500,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		r.Emit(Event{Kind: "status", Text: status})
 		raw, err := r.invokeAgent(ctx, connection, prompt, label, true, "")
 		responseFailure := err == nil
-		if errors.Is(err, errSteering) {
+		if errors.Is(err, errSteering) && !hardModelFailure(err) {
 			return Decision{}, err
 		}
 		var answer Decision
@@ -512,10 +531,10 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			}
 			return answer, nil
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && !hardModelFailure(err) {
 			return answer, ctx.Err()
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) && !hardModelFailure(err) {
 			return answer, err
 		}
 		lastFailure = err
@@ -530,6 +549,10 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			return answer, err
 		}
 		if errors.As(err, &charge) {
+			return answer, err
+		}
+		var authentication authError
+		if errors.As(err, &authentication) {
 			return answer, err
 		}
 		if authRE.MatchString(err.Error()) {
@@ -690,10 +713,10 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 				return result, nil
 			}
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && !hardModelFailure(err) {
 			return result, ctx.Err()
 		}
-		if errors.Is(err, errSteering) || errors.Is(err, context.Canceled) {
+		if (errors.Is(err, errSteering) || errors.Is(err, context.Canceled)) && !hardModelFailure(err) {
 			return result, err
 		}
 		kind := modelFailureKind(err, responseFailure)

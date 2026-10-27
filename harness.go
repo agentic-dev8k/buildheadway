@@ -214,7 +214,7 @@ func (r *Runner) finishTask(result WorkerResult, err error) {
 	record.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 	if err != nil {
 		record.Status, record.Error = "blocked", err.Error()
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) && !hardModelFailure(err) {
 			record.Status = "interrupted"
 		}
 	} else {

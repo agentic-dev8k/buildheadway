@@ -131,7 +131,7 @@ func runMain(args []string) int {
 			return runTeamCommand(paths, args[0], args[1:])
 		case "plan":
 			return runHeadless(paths, append([]string{"--plan-only"}, args[1:]...))
-		case "init", "config", "memory", "remember", "buildheadwayt", "check", "diff", "report", "export", "queue", "next", "workflows", "skills", "prompts", "hooks", "steering":
+		case "pause", "init", "config", "memory", "remember", "buildheadwayt", "check", "diff", "report", "export", "queue", "next", "workflows", "skills", "prompts", "hooks", "steering":
 			return runProjectCommand(paths, args[0], args[1:])
 		case "resume":
 			return runHeadless(paths, append([]string{"--resume"}, args[1:]...))
@@ -161,6 +161,7 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway team                 Show the senior team")
 		fmt.Println("  buildheadway discussion           Read the agents' saved conversation")
 		fmt.Println("  buildheadway resume [ID]          Recheck and continue saved work")
+		fmt.Println("  buildheadway pause [ID]           Pause a goal from another terminal")
 		fmt.Println("  buildheadway status               Inspect the current goal")
 		fmt.Println("  buildheadway acceptance           Show evidence for each requirement")
 		fmt.Println("  buildheadway routing              Inspect free-model health and cooldowns")
