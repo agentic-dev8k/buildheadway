@@ -25,7 +25,6 @@ type commandTimeoutError struct{ timeout time.Duration }
 func (e commandTimeoutError) Error() string {
 	return fmt.Sprintf("command timed out after %s", e.timeout)
 }
-func (e commandTimeoutError) Unwrap() error { return context.DeadlineExceeded }
 
 // ExecutionEvidence is additive checkpoint metadata. Empty failure_kind/error in
 // older checkpoints does not invent a duration or alter their recorded exit code.
@@ -37,10 +36,11 @@ type ExecutionEvidence struct {
 
 func verificationEvidence(ctx context.Context, result ProcessResult, err error, started time.Time) (ProcessResult, ExecutionEvidence) {
 	evidence := ExecutionEvidence{DurationMillis: max(1, time.Since(started).Milliseconds())}
+	var commandTimeout commandTimeoutError
 	switch {
 	case ctx.Err() != nil:
 		result.Code, evidence.FailureKind, err = 130, "cancelled", ctx.Err()
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.As(err, &commandTimeout):
 		result.Code, evidence.FailureKind = 124, "timeout"
 	case err != nil:
 		// No reliable child exit status exists (start, log or wait failure).

@@ -214,3 +214,23 @@ func TestInterruptedHookRetainsExecutedEvidence(t *testing.T) {
 		t.Fatalf("hook metadata not saved: %+v %v", saved, err)
 	}
 }
+
+func TestCommandTimeoutDoesNotImpersonateRunDeadline(t *testing.T) {
+	r, _ := fixtureRunner(t)
+	t.Setenv("BUILDHEADWAY_EXECUTION_HELPER", "1")
+	result, err := RunProcess(context.Background(), ShellCommand(executionCommand(t, "wait")), r.Repo, filepath.Join(r.Dir, "timeout.log"), "", ToolEnv(r.Paths), 50*time.Millisecond, nil)
+	var timedOut commandTimeoutError
+	if !errors.As(err, &timedOut) || errors.Is(err, context.DeadlineExceeded) || result.Code != 124 {
+		t.Fatalf("per-command timeout is indistinguishable from a run deadline: result=%+v error=%v", result, err)
+	}
+	result, evidence := verificationEvidence(context.Background(), result, err, time.Now())
+	if evidence.FailureKind != "timeout" || result.Code != 124 {
+		t.Fatalf("lost command timeout classification: %+v %+v", result, evidence)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	result, err = RunProcess(ctx, []string{"never-dispatched"}, r.Repo, filepath.Join(r.Dir, "not-started.log"), "", nil, time.Minute, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("upstream deadline identity lost")
+	}
+}
