@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag, for example v0.19.2
+        description: Existing version tag, for example v0.20.0
         required: true
         type: string
 permissions:
@@ -76,6 +76,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          Path('release-notes.md').write_text('Terminal coding agent release.\n\nNative tests and installation checks passed on Linux, Windows and macOS in this workflow. ARM64 targets are cross-compiled unless the corresponding runner executed them.\n\nSee INSTALL.md and VALIDATION.md in the bundle. Review this draft before publishing; npm publication is separate.\n')
+          Path('release-notes.md').write_text('Terminal coding agent release.\n\nNative tests and installation checks passed on Linux, Windows and macOS in this workflow. ARM64 targets are cross-compiled unless the corresponding runner executed them.\n\nSee docs/install.md and VALIDATION.md in the bundle. Review this draft before publishing; npm publication is separate.\n')
           PY
           gh release create "$RELEASE_TAG" --repo "$GH_REPO" --verify-tag --draft --title "$RELEASE_TAG" --notes-file release-notes.md dist/release-assets/* dist/buildheadway.zip dist/*.tgz
