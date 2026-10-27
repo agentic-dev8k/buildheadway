@@ -164,6 +164,9 @@ func (s State) goalContext() string {
 	return out.String()
 }
 func (r *Runner) invokeAgent(ctx context.Context, connection Connection, prompt, label string, planner bool, model string) (string, error) {
+	if err := r.pausePending(); err != nil {
+		return "", err
+	}
 	if err := r.steeringPending(); err != nil {
 		return "", err
 	}
@@ -183,6 +186,9 @@ func (r *Runner) finishRun(status, summary string) error {
 		return err
 	}
 	defer lock.Close()
+	if err := r.pausePending(); err != nil {
+		return err
+	}
 	if err := r.steeringPending(); err != nil {
 		return err
 	}

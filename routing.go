@@ -105,7 +105,8 @@ func modelFailureKind(err error, response bool) string {
 	if errors.As(err, &charge) || strings.Contains(err.Error(), "nonzero worker cost") {
 		return "cost"
 	}
-	if authRE.MatchString(err.Error()) {
+	var authentication authError
+	if errors.As(err, &authentication) || authRE.MatchString(err.Error()) {
 		return "auth"
 	}
 	if policyRE.MatchString(err.Error()) {
@@ -118,6 +119,17 @@ func modelFailureKind(err error, response bool) string {
 		return "response"
 	}
 	return "execution"
+}
+
+func hardModelFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch modelFailureKind(err, false) {
+	case "auth", "cost", "policy", "output_limit":
+		return true
+	}
+	return false
 }
 
 func modelCooldown(kind string, failures int) time.Duration {

@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global ./buildheadway-0.20.0.tgz
+npm install --global ./buildheadway-0.21.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -217,6 +217,29 @@ Workers receive recent task reports and failed-check output. If a worker fails, 
 
 The terminal shows the cycle and batch progress while working. `/events` keeps the latest 200 harness events; full task history and child-process logs remain under the project's `.forge/runs/` directory. Inspection commands also work from another terminal without connecting an agent. The project queue is saved to disk. Goals typed while a job is running join it automatically. After a normal goal succeeds, pending queued goals run in order. A failed or paused goal holds the remaining queue. Closing BuildHeadway preserves the queue; /next resumes its first unfinished goal, and /queue run drains it. Saving a plan or running standalone checks does not start waiting goals. No work runs while BuildHeadway is closed.
 
+## Pause and resume from another terminal
+
+While BuildHeadway is working, open another terminal in the same project:
+
+~~~sh
+buildheadway pause
+buildheadway status
+buildheadway resume
+~~~
+
+`pause` saves a request for the latest goal without connecting a model or waiting for the active project's run lock. The running controller cancels its active agent or verification command, retains partial work and diagnostics, and saves a `paused` checkpoint. Wait for that status before resuming; the pause command confirms that the request was saved, not that every subprocess has already stopped. Attached adapters must honor cancellation. A reported authentication, quota, policy, cost or oversized-output failure remains a blocker even if a pause arrives at the same time.
+
+For a specific saved goal or another project folder, put flags before the run ID:
+
+~~~sh
+buildheadway pause --project /path/to/project --json RUN_ID
+buildheadway resume RUN_ID
+~~~
+
+Repeated requests coalesce until an explicit start or resume acknowledges them. A request targets only its named goal; it does not cancel other saved goals. Completed goals refuse pause requests. A saved inactive goal may receive a request, but no process starts or stops on its own; the next explicit resume acknowledges the old request and continues. Inside the original terminal, `/stop` and Ctrl+C remain available.
+
+Resume checks interrupted edits before another assignment and obtains fresh checks and senior review before completion. A paused queue holds later goals; use `buildheadway next` or `buildheadway queue run` to resume the same queued goal, then continue in order. BuildHeadway must remain open for work to run.
+
 ## Project setup, plans, and notes
 
 `buildheadway init` creates `.buildheadway.json` and `BUILDHEADWAY.md` without replacing existing files. Put project conventions in `BUILDHEADWAY.md`; use `/remember` for short local notes. Notes are stored in `.forge/memory.json` and included in future goals and resumed work. `/buildheadwayt` removes a note from future context, while earlier checkpoints retain their recorded context.
@@ -270,6 +293,8 @@ buildheadway run "Your goal"
 buildheadway run --resume
 buildheadway resume
 buildheadway resume RUN_ID
+buildheadway pause
+buildheadway pause --json RUN_ID
 buildheadway status
 buildheadway status --json
 buildheadway tasks

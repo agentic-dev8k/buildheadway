@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.0 — 2026-10-27
+
+- Added `buildheadway pause [RUN_ID]`, with project selection and JSON output, to save a pause request from another terminal without model access or overwriting the active checkpoint. Repeated and concurrent requests coalesce; completed goals refuse requests.
+- Active goals cancel attached calls, verification and retry waits, retain partial edits and execution evidence, and save a paused checkpoint. Explicit resume acknowledges the old request, rechecks interrupted work and obtains fresh senior review. Queues hold later goals and resume the same saved run.
+- Serialized pause requests with final completion and retained authentication/quota, policy, reported-cost and output-limit blockers when cancellation races with a provider failure. Invalid bounded control files stop safely rather than being ignored.
+- Added real subprocess and installed-CLI pause/resume coverage, interrupted verification recovery, concurrent-writer and per-goal isolation regressions, queue recovery, malformed-control handling and provider-blocker races. Checkpoint v12, pricing, model selection, budgets and acceptance gates remain intact.
+
 ## 0.20.0 — 2026-10-27
 
 - Reorganized detailed guides under `docs/`, with a documentation index, a concise root README and contributor instructions. Preserved installation, harness, extension, identity and historical validation material. Packages and source archives retain the guides and approved artwork.

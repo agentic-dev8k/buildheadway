@@ -54,6 +54,18 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 		emit = noEmit
 	}
 	switch kind {
+	case "pause":
+		id := "latest"
+		if len(values) > 1 {
+			return fail(errors.New("expected at most one run ID"))
+		}
+		if len(values) == 1 {
+			id = values[0]
+		}
+		var request PauseRequest
+		request, err = RequestPause(repo, id)
+		value = request
+		formatted = "Pause request saved for " + request.RunID + ". The active controller will stop and checkpoint; use buildheadway status to inspect progress and buildheadway resume to continue."
 	case "workflows", "skills", "prompts":
 		var items []Workflow
 		items, err = DiscoverWorkflows(paths, repo)

@@ -16,6 +16,16 @@ If a failed worker changed files in the source snapshot, BuildHeadway stops that
 
 Use `buildheadway routing [RUN_ID]`, `buildheadway routing --json`, or `/routing` to inspect saved observations and recent decisions without calling a model or refreshing a catalog. `buildheadway status` shows an active wait, and exported run reports include routing history. A usable response can still contain an incorrect implementation: acceptance checks, fresh source verification and unanimous senior review remain the completion gates.
 
+## Durable pause control (0.21)
+
+`buildheadway pause [RUN_ID]` lets another terminal request a pause without acquiring the running goal's project lock or rewriting its checkpoint. The request is pinned to one run. Duplicate requests coalesce; an explicit start/resume acknowledges the previous request. A paused queued goal keeps its identity and holds later goals until the user resumes the queue.
+
+The controller checks before dispatch and completion and polls every 200 ms during agent calls, verification and retry waits. It cancels the existing execution context so local subprocesses use the same process-tree termination as Ctrl+C. Partial edits, task recovery and attempted-check diagnostics survive; resume verifies the current files and obtains fresh senior approval. Cancellation depends on the attached adapter honoring its context, and the requesting CLI does not claim that shutdown has already finished. Inspect `buildheadway status` for the saved outcome.
+
+Completion and pause requests share the steering lock: a saved request prevents completion, or a completed checkpoint causes the pause command to refuse the request. Provider authentication/quota, cost, policy and output-limit errors retain precedence over concurrent pause cancellation and never become an automatic retry. Invalid or unsupported control files block instead of being silently ignored, including when discovered during a running call.
+
+The separate `.forge/runs/RUN_ID/control.json` format is version 1, limited to 4,096 bytes and restricted to regular files with a matching run identity and valid request time. Only the controller writes `state.json`; request writers update the control file atomically. Checkpoint v12 and earlier-brand run locations remain unchanged. These controls coordinate a running local controller; they do not start a background service or suspend a remote provider independently of its adapter.
+
 ## Acceptance evidence
 
 Version 0.11 makes acceptance coverage an executable gate for all new and resumed goals. Each retained success criterion must have at least one meaningful check. A senior can propose the mapping in its structured decision:
