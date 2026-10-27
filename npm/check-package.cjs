@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { verifiedBinary } = require('./buildheadway.cjs');
+const { checkDocs } = require('./check-docs.cjs');
 
 function checkPackage(root) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -22,7 +23,7 @@ function checkPackage(root) {
       throw new Error(`Invalid brand PNG: ${file}`);
     }
   }
-  if (!fs.statSync(path.join(root, 'BRANDING.md')).isFile()) throw new Error('Missing BRANDING.md');
+  checkDocs(root);
   return pkg;
 }
 

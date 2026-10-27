@@ -1,6 +1,6 @@
 {
   "name": "buildheadway",
-  "version": "0.19.2",
+  "version": "0.20.0",
   "description": "BuildHeadway terminal coding agent: communicating senior teams, free workers, and verified repair loops.",
   "license": "MIT",
   "bin": {
@@ -25,14 +25,13 @@
     "SHA256SUMS",
     "THIRD_PARTY_LICENSES/",
     "README.md",
-    "EXTENSIONS.md",
-    "INSTALL.md",
-    "HARNESS.md",
-    "NAMING.md",
     "VALIDATION.md",
     "LICENSE",
     "assets/brand/",
-    "BRANDING.md"
+    "docs/",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "npm/check-docs.cjs"
   ],
   "scripts": {
     "prepack": "node npm/check-package.cjs"
