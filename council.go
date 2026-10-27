@@ -408,7 +408,7 @@ func councilCompletionAllowed(s State) bool {
 		return false
 	}
 	for _, result := range s.CheckResults {
-		if result.ExitCode == 0 && !result.SourceChanged && usefulCheck(result.Command) {
+		if result.Passed() && usefulCheck(result.Command) {
 			return true
 		}
 	}

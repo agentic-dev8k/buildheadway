@@ -69,6 +69,7 @@ def build(args):
     source_version = next(line.split('"')[1] for line in (root / "types.go").read_text().splitlines() if line.startswith("const Version ="))
     if package["version"] != source_version:
         raise ValueError("Native and npm package versions must match")
+    command(["node", "npm/check-docs.cjs"], root)
     if not args.skip_tests:
         print("Running native tests", flush=True)
         command([args.go, "test", "-buildvcs=false", "./..."], root)
@@ -89,16 +90,17 @@ def build(args):
 
     with ThreadPoolExecutor(max_workers=args.jobs) as executor:
         binaries = list(executor.map(compile_target, targets))
-    for name in ["README.md", "CHANGELOG.md", "EXTENSIONS.md", "INSTALL.md", "HARNESS.md", "NAMING.md", "BRANDING.md", "LICENSE", "install.sh", "install.ps1"]:
+    for name in ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "install.sh", "install.ps1"]:
         data = (root / name).read_bytes()
         if name in ("install.sh", "install.ps1"):
             data = data.replace(b"@RELEASE_REPOSITORY@", args.repository.encode())
         (stage / name).write_bytes(data)
         if name.endswith(".sh"):
             (stage / name).chmod(0o755)
+    shutil.copytree(root / "docs", stage / "docs")
     (stage / "package.json").write_text(json.dumps(package, indent=2) + "\n")
     (stage / "npm").mkdir()
-    for name in ["buildheadway.cjs", "check-package.cjs"]:
+    for name in ["buildheadway.cjs", "check-package.cjs", "check-docs.cjs"]:
         shutil.copyfile(root / "npm" / name, stage / "npm" / name)
         (stage / "npm" / name).chmod(0o755)
     brand_paths = {Path("assets") / "brand" / name for name in BRAND_ASSETS}
@@ -172,8 +174,8 @@ def build(args):
         "The included CI workflow runs the native tests and install/upgrade/uninstall checks on all three OS families.\n\n"
         "This package is unsigned and is not described as a fully verified production release.\n"
     )
-    if (root / "LIVE_VALIDATION.md").exists():
-        report += "\n" + (root / "LIVE_VALIDATION.md").read_text()
+    if (root / "docs/maintainers/validation.md").exists():
+        report += "\n" + (root / "docs/maintainers/validation.md").read_text()
     (stage / "VALIDATION.md").write_text(report)
     if set(targets) == set(TARGETS):
         # Use npm's own packlist and lifecycle, with no third-party build dependencies.
@@ -197,7 +199,7 @@ def build(args):
 
         tarball = pack()
         env = dict(os.environ, BUILDHEADWAY_PACKAGE_DIR=str(stage), BUILDHEADWAY_PACKAGE_TGZ=str(tarball))
-        result = command(["node", "--test", "npm/test/launcher.test.cjs", "npm/test/package.test.cjs"], root, env=env)
+        result = command(["node", "--test", "npm/test/docs.test.cjs", "npm/test/launcher.test.cjs", "npm/test/package.test.cjs"], root, env=env)
         print(result, flush=True)
         validation["npm_package_tests_passed"] = True
         validation["npm_test_host"] = host_target()

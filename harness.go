@@ -468,6 +468,7 @@ func FormatStatus(state State) string {
 	for _, check := range state.CheckResults {
 		fmt.Fprintf(&out, "  exit %d · %s\n", check.ExitCode, check.Command)
 		fmt.Fprint(&out, sourceChangeNotice(check.SourceChanged))
+		fmt.Fprint(&out, executionNotice(check.ExecutionEvidence))
 	}
 	if len(state.Steering) > 0 {
 		fmt.Fprintf(&out, "User updates applied: %d (buildheadway steering shows the inbox)\n", len(state.Steering))
@@ -475,6 +476,7 @@ func FormatStatus(state State) string {
 	for _, hook := range state.HookResults {
 		fmt.Fprintf(&out, "  hook %s · exit %d\n", hook.Name, hook.ExitCode)
 		fmt.Fprint(&out, sourceChangeNotice(hook.SourceChanged))
+		fmt.Fprint(&out, executionNotice(hook.ExecutionEvidence))
 	}
 	if state.Error != "" {
 		fmt.Fprintln(&out, state.Error)

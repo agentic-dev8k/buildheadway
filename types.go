@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.19.2"
+const Version = "0.20.0"
 
 type Paths struct {
 	Config string `json:"config"`
@@ -177,6 +177,7 @@ type RunEvent struct {
 	Text string `json:"text"`
 }
 type CheckResult struct {
+	ExecutionEvidence
 	Command         string `json:"command"`
 	ExitCode        int    `json:"exit_code"`
 	Output          string `json:"output"`
@@ -184,6 +185,11 @@ type CheckResult struct {
 	OutputTruncated bool   `json:"output_truncated,omitempty"`
 	SourceChanged   bool   `json:"source_changed,omitempty"`
 }
+
+func (c CheckResult) Passed() bool {
+	return c.ExitCode == 0 && !c.SourceChanged && c.FailureKind == "" && c.Error == ""
+}
+
 type WorkerResult struct {
 	Reply  *WorkerReply `json:"communication,omitempty"`
 	Task   string       `json:"task"`

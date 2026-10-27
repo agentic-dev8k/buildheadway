@@ -20,6 +20,52 @@ type ProcessResult struct {
 	OutputTruncated bool
 }
 
+type commandTimeoutError struct{ timeout time.Duration }
+
+func (e commandTimeoutError) Error() string {
+	return fmt.Sprintf("command timed out after %s", e.timeout)
+}
+func (e commandTimeoutError) Unwrap() error { return context.DeadlineExceeded }
+
+// ExecutionEvidence is additive checkpoint metadata. Empty failure_kind/error in
+// older checkpoints does not invent a duration or alter their recorded exit code.
+type ExecutionEvidence struct {
+	DurationMillis int64  `json:"duration_ms,omitempty"`
+	FailureKind    string `json:"failure_kind,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
+
+func verificationEvidence(ctx context.Context, result ProcessResult, err error, started time.Time) (ProcessResult, ExecutionEvidence) {
+	evidence := ExecutionEvidence{DurationMillis: max(1, time.Since(started).Milliseconds())}
+	switch {
+	case ctx.Err() != nil:
+		result.Code, evidence.FailureKind, err = 130, "cancelled", ctx.Err()
+	case errors.Is(err, context.DeadlineExceeded):
+		result.Code, evidence.FailureKind = 124, "timeout"
+	case err != nil:
+		// No reliable child exit status exists (start, log or wait failure).
+		result.Code, evidence.FailureKind = -1, "execution"
+	case result.Code != 0:
+		evidence.FailureKind = "exit"
+	}
+	if err != nil {
+		evidence.Error, _ = evidenceExcerpt(err.Error(), 2000)
+		result.Output += "\n" + evidence.Error
+	}
+	return result, evidence
+}
+
+func executionNotice(e ExecutionEvidence) string {
+	if e.FailureKind == "" {
+		return ""
+	}
+	text := fmt.Sprintf("[%s; elapsed %s", e.FailureKind, time.Duration(e.DurationMillis)*time.Millisecond)
+	if e.Error != "" {
+		text += ": " + e.Error
+	}
+	return text + "]\n"
+}
+
 const processOutputLimit int64 = 8 << 20
 
 type outputLimitError struct{}
@@ -139,7 +185,7 @@ func RunProcess(ctx context.Context, argv []string, cwd, logPath, input string, 
 			return result, ctx.Err()
 		}
 		result.Code = 124
-		return result, fmt.Errorf("command timed out after %s", timeout)
+		return result, commandTimeoutError{timeout}
 	}
 	if readErr != nil {
 		return result, fmt.Errorf("reading process log: %w", readErr)
