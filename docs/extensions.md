@@ -143,6 +143,6 @@ Research checked on 22 October 2026.
 
 ## Requirement coverage
 
-Version 0.11 adds the optional `acceptance` array to project settings. Each item contains a `criterion` string and non-empty `checks` array. Its commands become pinned required checks. Inspect coverage through `/acceptance` or `buildheadway acceptance --json`. See [HARNESS.md](HARNESS.md) for examples and how planner-generated mappings accumulate.
+Version 0.11 adds the optional `acceptance` array to project settings. Each item contains a `criterion` string and non-empty `checks` array. Its commands become pinned required checks. Inspect coverage through `/acceptance` or `buildheadway acceptance --json`. See [Harness guide](harness.md) for examples and how planner-generated mappings accumulate.
 
 All root `AGENTS.md`, `CLAUDE.md` and `BUILDHEADWAY.md` files are included in shared context once. The existing containment and size limits apply to these files too.
