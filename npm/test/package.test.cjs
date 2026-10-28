@@ -143,6 +143,16 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(buildheadway(['steering']), /check-compatibility/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(runDir, 'steering.json'), 'utf8')).messages.length, 1);
   assert.equal(JSON.parse(buildheadway(['tasks', '--json']))[0].attempts, 1);
+  const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
+  assert.match(buildheadway(['tasks']), /1:0/);
+  const taskBytes = fs.readFileSync(path.join(runDir, 'state.json'));
+  const taskRecord = JSON.parse(taskRead(['tasks', '--json', '--task', '1:0', runID]));
+  assert.deepEqual(taskRecord, checkpoint.task_history[0]);
+  assert.match(taskRead(['tasks', '--task', '1:0', runID]), /Instructions:\nVerify installation/);
+  assert.throws(() => taskRead(['tasks', '--task', 'unknown', runID]), error => error.status !== 0);
+  assert.throws(() => taskRead(['status', '--task', '1:0', runID]), error => error.status !== 0);
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), taskBytes);
+
   assert.equal(JSON.parse(buildheadway(['events', '--json']))[0].kind, 'task-reported');
   assert.equal(JSON.parse(buildheadway(['discussion', '--json'])), null); // Older runs have no council transcript.
   fs.writeFileSync(path.join(home, 'config', 'connection.json'), JSON.stringify({
@@ -216,6 +226,19 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   const fullLog = JSON.parse(buildheadway(['logs', '--last-check', '--json', checked.results[0].log]));
   assert.match(fullLog.output, /verified/);
   assert.equal(fullLog.truncated, false);
+  const reportPath = path.join(project, '.forge/checks', checked.id, 'report.json');
+  const reportBeforePaging = fs.readFileSync(reportPath);
+  const firstPage = JSON.parse(buildheadway(['logs', '--last-check', '--json', '--offset', '0', '--bytes', '5', checked.results[0].log]));
+  assert.equal(firstPage.output, fullLog.output.slice(0, 5));
+  assert.equal(firstPage.next_offset, 5);
+  assert.equal(firstPage.more, true);
+  const rest = JSON.parse(buildheadway(['logs', '--last-check', '--json', '--offset', '5', checked.results[0].log]));
+  assert.equal(firstPage.output + rest.output, fullLog.output);
+  assert.equal(rest.more, false);
+  assert.throws(() => buildheadway(['logs', '--last-check', '--offset', '-1', checked.results[0].log]), error => error.status !== 0);
+  assert.throws(() => buildheadway(['logs', '--last-check', '--offset', '0']), error => error.status !== 0);
+  assert.deepEqual(fs.readFileSync(reportPath), reportBeforePaging);
+
   assert.throws(() => buildheadway(['logs', '--last-check', '../state.json']), error => error.status !== 0);
 
   assert.equal(JSON.parse(buildheadway(['status', '--json'])).status, 'paused', 'standalone checks preserve the goal');
@@ -248,6 +271,35 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   const autonomous = JSON.parse(buildheadway(['queue', '--json', 'figureout', 'autonomous-goal']));
   assert.equal(autonomous.mode, 'figureout');
   buildheadway(['queue', 'remove', autonomous.id]);
+  const queueCheckpoint = fs.readFileSync(path.join(runDir, 'state.json'));
+  const prune = JSON.parse(buildheadway(['queue', '--json', 'prune']));
+  assert.equal(prune.pruned, 2);
+  assert.equal(prune.remaining, 0);
+  assert.ok(prune.archived_ids.includes(queued.id));
+  const archived = JSON.parse(buildheadway(['queue', '--json', 'archive', queued.id]));
+  assert.equal(archived.goal, queued.goal);
+  assert.equal(archived.status, 'canceled');
+  const archivePage = JSON.parse(buildheadway(['queue', '--json', '--limit', '1', 'archives']));
+  assert.equal(archivePage.items.length, 1);
+  assert.equal(archivePage.more, true);
+  const archiveNext = JSON.parse(buildheadway(['queue', '--json', '--after', archivePage.next_after, 'archives']));
+  assert.equal(archiveNext.items.length, 1);
+  assert.notEqual(archiveNext.items[0].id, archivePage.items[0].id);
+  assert.equal(archiveNext.more, false);
+  const archiveSearch = JSON.parse(buildheadway(['queue', '--json', '--search', 'AUTONOMOUS-GOAL', 'archives']));
+  assert.equal(archiveSearch.items.length, 1);
+  assert.equal(archiveSearch.items[0].id, autonomous.id);
+  assert.match(buildheadway(['queue', 'archives']), /Inspect full evidence/);
+  assert.throws(() => buildheadway(['queue', '--limit', '0', 'archives']), error => error.status !== 0);
+  assert.throws(() => buildheadway(['queue', '--search', 'ignored', 'prune']), error => error.status !== 0);
+
+  assert.match(buildheadway(['queue', 'archive', autonomous.id]), /autonomous-goal/);
+  assert.equal(JSON.parse(buildheadway(['queue', '--json', 'prune'])).pruned, 0);
+  assert.equal(JSON.parse(buildheadway(['queue', '--json'])).items.length, 0);
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), queueCheckpoint);
+  assert.throws(() => buildheadway(['queue', 'archive', '../queue']), error => error.status !== 0);
+  assert.throws(() => buildheadway(['queue', 'prune', 'unexpected']), error => error.status !== 0);
+
   assert.equal(JSON.parse(buildheadway(['history', '--json', '--search', 'inspect'])).length, 1);
   assert.match(buildheadway(['report']), /BuildHeadway run report/);
   const exported = JSON.parse(buildheadway(['export', '--json']));
