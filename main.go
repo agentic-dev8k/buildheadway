@@ -335,6 +335,7 @@ func inspectRun(kind string, args []string) int {
 	jsonOutput := flags.Bool("json", false, "Print machine-readable output")
 	search := flags.String("search", "", "Filter goal history by text, status, or ID")
 	limit := flags.Int("limit", 20, "Maximum history entries; zero shows all")
+	taskKey := flags.String("task", "", "Inspect one full task record by key (tasks command)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -352,7 +353,22 @@ func inspectRun(kind string, args []string) int {
 	if len(flags.Args()) == 1 {
 		id = flags.Args()[0]
 	}
-	value, formatted, err := InspectRun(repo, id, kind)
+	taskSelected := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "task" {
+			taskSelected = true
+		}
+	})
+	if taskSelected && (kind != "tasks" || *taskKey == "") {
+		return fail(errors.New("--task requires a task key and applies only to tasks"))
+	}
+	var value any
+	var formatted string
+	if taskSelected {
+		value, formatted, err = InspectTask(repo, id, *taskKey)
+	} else {
+		value, formatted, err = InspectRun(repo, id, kind)
+	}
 	if kind == "history" && err == nil {
 		if *limit < 0 {
 			return fail(errors.New("history limit must be zero or positive"))

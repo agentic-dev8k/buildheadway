@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global ./buildheadway-0.22.0.tgz
+npm install --global ./buildheadway-0.26.0.tgz
 cd my-project
 buildheadway
 ```

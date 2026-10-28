@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func outputValue(value any, formatted string, asJSON bool) error {
@@ -31,6 +32,9 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 	asJSON := flags.Bool("json", false, "Print machine-readable output")
 	destination := flags.String("output", "", "Export file path (export command)")
 	overwrite := flags.Bool("force", false, "Replace an existing export file")
+	archiveSearch := flags.String("search", "", "Search archived queue ID, status or goal (queue archives)")
+	archiveAfter := flags.String("after", "", "Continue after this queue ID (queue archives)")
+	archiveLimit := flags.Int("limit", 20, "Archived goals per page, 1–100 (queue archives)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -47,6 +51,15 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	values := flags.Args()
+	archiveFlags := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "search" || f.Name == "after" || f.Name == "limit" {
+			archiveFlags = true
+		}
+	})
+	if archiveFlags && (kind != "queue" || len(values) == 0 || values[0] != "archives") {
+		return fail(errors.New("--search, --after and --limit apply only to queue archives"))
+	}
 	var value any
 	var formatted string
 	emit := printEvent
@@ -194,6 +207,29 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 			values = values[1:]
 		}
 		switch action {
+		case "archives":
+			if len(values) != 0 {
+				return fail(errors.New("queue archives accepts no positional arguments; use --search before archives"))
+			}
+			queryCtx, stop := context.WithTimeout(ctx, 30*time.Second)
+			defer stop()
+			var page QueueArchivePage
+			page, err = ListQueueArchives(queryCtx, repo, *archiveSearch, *archiveAfter, *archiveLimit)
+			value, formatted = page, FormatQueueArchives(page)
+		case "prune":
+			if len(values) != 0 {
+				return fail(errors.New("queue prune accepts no arguments"))
+			}
+			var report QueuePruneReport
+			report, err = PruneQueue(repo)
+			value, formatted = report, FormatQueuePrune(report)
+		case "archive":
+			if len(values) != 1 {
+				return fail(errors.New("usage: buildheadway queue archive QUEUE_ID"))
+			}
+			var item QueuedGoal
+			item, err = ReadQueueArchive(repo, values[0])
+			value, formatted = item, FormatQueue(GoalQueue{Version: 1, Items: []QueuedGoal{item}})
 		case "add", "figureout":
 			var item QueuedGoal
 			item, err = QueueAddMode(repo, strings.Join(values, " "), "figureout")
@@ -241,7 +277,7 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 			value = queue
 			formatted = FormatQueue(queue)
 		default:
-			return fail(errors.New("queue actions: add, figureout, list, run, next, remove, move"))
+			return fail(errors.New("queue actions: add, figureout, list, run, next, remove, move, prune, archives, archive"))
 		}
 	default:
 		return fail(errors.New("unknown project command"))
