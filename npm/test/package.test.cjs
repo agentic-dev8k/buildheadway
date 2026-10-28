@@ -144,6 +144,19 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(JSON.parse(fs.readFileSync(path.join(runDir, 'steering.json'), 'utf8')).messages.length, 1);
   assert.equal(JSON.parse(buildheadway(['tasks', '--json']))[0].attempts, 1);
   const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
+  for (const shell of ['bash', 'zsh', 'fish', 'powershell']) {
+    assert.match(taskRead(['completion', shell]), /__complete/);
+  }
+  assert.equal(taskRead(['__complete', 'mcp', '--current=ad']), 'add\n');
+  assert.equal(taskRead(['__complete', 'figureout', '--access', '--current=wo']), 'workspace\n');
+  assert.equal(taskRead(['__complete', 'figureout', 'a quoted goal', '--current=--max-']), '');
+  assert.throws(() => taskRead(['completion', 'unknown']), error => error.status !== 0);
+  checkpoint.prompt_usage = [{ at: '2026-10-28T00:00:00Z', label: 'plan', bytes: 500, limit_bytes: 524288, fits: true }];
+  fs.writeFileSync(path.join(runDir, 'state.json'), JSON.stringify(checkpoint));
+  const contextBytes = fs.readFileSync(path.join(runDir, 'state.json'));
+  assert.deepEqual(JSON.parse(taskRead(['context', '--json'])), { run_id: runID, configured_limit_bytes: 524288, recent: checkpoint.prompt_usage });
+  assert.match(taskRead(['context']), /500\/524288 bytes/);
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), contextBytes);
   assert.match(buildheadway(['tasks']), /1:0/);
   const taskBytes = fs.readFileSync(path.join(runDir, 'state.json'));
   const taskRecord = JSON.parse(taskRead(['tasks', '--json', '--task', '1:0', runID]));
