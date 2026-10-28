@@ -2,6 +2,17 @@
 
 BuildHeadway works from a terminal on Windows, macOS and Linux, with x64 and ARM64 builds. Install the command, open a project folder, connect an agent, then describe what you want built.
 
+## Choose your terminal
+
+| Environment | Start here | Agent connections |
+| --- | --- | --- |
+| Windows | PowerShell or CMD; use PowerShell for the native `.ps1` installer | Use agents installed and signed in on Windows |
+| macOS | Terminal with Zsh or Bash | Use agents installed and signed in on macOS |
+| Linux | An interactive terminal with Bash, Zsh or Fish | Use agents installed and signed in in that Linux environment |
+| WSL on Windows | Open your WSL distribution's terminal and follow the Linux steps | Install and sign in to Linux agents inside that distribution |
+
+Choose the environment that contains your project and development tools. After installation, the same `buildheadway` command opens the terminal app. Both npm and native downloads select x64 or ARM64 automatically; npm needs Node.js 20+, while the native download needs no Node.js for BuildHeadway itself. Detailed commands are in the [platform installation guide](install.md).
+
 ## 1. Install and verify
 
 Download `buildheadway-0.29.0.tgz`. With Node.js 20+ and npm, open a terminal in the download folder and run:
@@ -40,6 +51,8 @@ buildheadway attach claude
 buildheadway attach pi
 buildheadway team
 ```
+
+Run `buildheadway scan` to see detected installations and `buildheadway doctor` to verify the setup without model calls.
 
 Choose agents you already use; installing all of them is unnecessary. Native agents can have their own Node.js or Git requirements, separate from BuildHeadway itself. Discovery does not prove authentication or quota. Implementation workers still require a refreshed zero-price catalog; account, cost and policy blockers remain enforced.
 

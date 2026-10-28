@@ -199,7 +199,7 @@ Earlier installation references, reviewed on 2026-10-23:
 
 Reviewed on 2026-10-28 for this update:
 
-- [Pi quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) and [Windows guidance](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/windows.md): install/verify/project/connect/task flow and distinct native Windows/WSL environments.
-- [OpenCode 1 introduction](https://opencode.ai/docs/) and [OpenCode 2 introduction](https://opencode.ai/v2/docs): terminal entry point, platform downloads, connection setup and customization. OpenCode 1 and 2 share a command name but have different interfaces. BuildHeadway still checks its adapter's required flags; this setup update does not silently claim OpenCode 2 adapter compatibility.
+- [Pi quickstart](https://pi.dev/docs/latest/quickstart), its [repository version](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) and [Windows guidance](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/windows.md): install/verify/project/connect/task flow and distinct native Windows/WSL environments. The live quickstart also documents a native PowerShell installer; BuildHeadway provides its own PowerShell/native and npm routes.
+- [OpenCode 1 introduction](https://docs.opencode.ai/docs/) and [Windows/WSL guide](https://docs.opencode.ai/docs/windows-wsl/) and [OpenCode 2 introduction](https://opencode.ai/v2/docs): terminal entry point, platform downloads, connection setup and customization. OpenCode 1 and 2 share a command name but have different interfaces. BuildHeadway still checks its adapter's required flags; this setup update does not silently claim OpenCode 2 adapter compatibility.
 
 BuildHeadway implements its own installation and verification code. The named projects are references, not bundled implementations or endorsements.
