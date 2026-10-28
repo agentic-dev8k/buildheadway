@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.26.0"
+const Version = "0.29.0"
 
 type Paths struct {
 	Config string `json:"config"`
@@ -199,6 +199,7 @@ type WorkerResult struct {
 	Error  string       `json:"error,omitempty"`
 }
 type State struct {
+	PromptUsage           []PromptUsage      `json:"prompt_usage,omitempty"`
 	ModelHealth           []ModelHealth      `json:"model_health,omitempty"`
 	RoutingWait           *RoutingWait       `json:"routing_wait,omitempty"`
 	Acceptance            []AcceptanceCheck  `json:"acceptance,omitempty"`

@@ -18,6 +18,19 @@ import (
 
 func main() { os.Exit(runMain(os.Args[1:])) }
 func runMain(args []string) int {
+	if len(args) > 0 && args[0] == "completion" {
+		return runCompletion(args[1:])
+	}
+	if len(args) > 0 && args[0] == "__complete" {
+		words := append([]string(nil), args[1:]...)
+		if len(words) > 0 {
+			words[len(words)-1] = strings.TrimPrefix(words[len(words)-1], "--current=")
+		}
+		for _, v := range completionCandidates(words) {
+			fmt.Println(v)
+		}
+		return 0
+	}
 	if len(args) > 0 && args[0] == "--internal-demo-check" {
 		if len(args) != 2 {
 			return 2
@@ -139,7 +152,7 @@ func runMain(args []string) int {
 			return runProjectCommand(paths, args[0], args[1:])
 		case "resume":
 			return runHeadless(paths, append([]string{"--resume"}, args[1:]...))
-		case "status", "tasks", "history", "events", "discussion", "acceptance", "routing":
+		case "status", "tasks", "history", "events", "discussion", "acceptance", "routing", "context":
 			return inspectRun(args[0], args[1:])
 		}
 	}
@@ -154,6 +167,7 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway                      Open the terminal app")
 		fmt.Println("  buildheadway \"your goal\"          Open BuildHeadway with a goal")
 		fmt.Println("  buildheadway --demo               Try the offline repair loop")
+		fmt.Println("  buildheadway completion bash      Generate shell completions (also zsh/fish/powershell)")
 		fmt.Println("  buildheadway scan                 Find installed coding agents")
 		fmt.Println("  buildheadway install              Install for this user")
 		fmt.Println("  buildheadway update               Upgrade a native installation")
@@ -169,6 +183,7 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway extensions          Inspect or create custom skills and prompts")
 		fmt.Println("  buildheadway mcp                 Configure and check external tool servers")
 		fmt.Println("  buildheadway status               Inspect the current goal")
+		fmt.Println("  buildheadway context              Show prompt sizes and configured allowance")
 		fmt.Println("  buildheadway acceptance           Show evidence for each requirement")
 		fmt.Println("  buildheadway routing              Inspect free-model health and cooldowns")
 		fmt.Println("  buildheadway tasks                Show durable task history")
@@ -244,12 +259,16 @@ func runHeadless(paths Paths, args []string) int {
 	calls := flags.Int("max-planner-calls", 0, "Optional planner-call limit; zero is unlimited")
 	stalled := flags.Int("max-stalled-cycles", stallDefault, "Pause after this many unchanged verification rounds; zero disables")
 	workers := flags.Int("max-worker-calls", 0, "Worker invocation budget; zero is unlimited")
+	maxPromptBytes := flags.Int("max-prompt-bytes", 0, "Complete supplied prompt byte allowance; zero uses 512 KiB (16 KiB–8 MiB)")
 	maxRuntime := flags.Duration("max-runtime", 0, "Total active run-time budget, for example 30m; zero is unlimited")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
+	}
+	if !validPromptLimit(*maxPromptBytes) {
+		return fail(errors.New("--max-prompt-bytes must be zero or between 16384 and 8388608"))
 	}
 	if *cycles < 0 || *calls < 0 || *stalled < 0 || *workers < 0 || *maxRuntime < 0 {
 		return fail(errors.New("limits must be zero or a positive number"))
@@ -317,6 +336,8 @@ func runHeadless(paths Paths, args []string) int {
 			runner.MaxWorkerCalls = *workers
 		case "max-stalled-cycles":
 			runner.MaxStalledCycles = *stalled
+		case "max-prompt-bytes":
+			runner.MaxPromptBytes = *maxPromptBytes
 		case "max-runtime":
 			runner.MaxRuntime = *maxRuntime
 		}

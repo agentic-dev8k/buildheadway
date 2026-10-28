@@ -85,6 +85,12 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 	argument = strings.TrimSpace(argument)
 	repo, paths := m.repo, m.paths
 	switch command {
+	case "/context":
+		return func() tea.Msg {
+			value, formatted, err := InspectRun(repo, argument, "context")
+			_ = value
+			return inspectionMsg{"Context", formatted, err}
+		}, true
 	case "/logs":
 		return func() tea.Msg {
 			report, err := ReadLogs(repo, "latest", false, argument, 16000)

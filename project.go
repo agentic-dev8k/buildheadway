@@ -17,6 +17,7 @@ import (
 )
 
 type ProjectConfig struct {
+	MaxPromptBytes        int                  `json:"max_prompt_bytes,omitempty"`
 	MCPServers            map[string]MCPServer `json:"mcp_servers,omitempty"`
 	Acceptance            []AcceptanceCheck    `json:"acceptance,omitempty"`
 	Hooks                 []ProjectHook        `json:"hooks,omitempty"`
@@ -72,6 +73,9 @@ func LoadProjectConfig(repo string) (ProjectConfig, error) {
 	return config, ValidateProjectConfig(config)
 }
 func ValidateProjectConfig(config ProjectConfig) error {
+	if !validPromptLimit(config.MaxPromptBytes) {
+		return errors.New("max_prompt_bytes must be zero or between 16384 and 8388608")
+	}
 	if err := validateMCPServers(config.MCPServers); err != nil {
 		return err
 	}
@@ -347,6 +351,7 @@ func FormatMemory(memory ProjectMemory) string {
 }
 func (r *Runner) applyConfig() {
 	config := r.State.Config
+	r.MaxPromptBytes = config.MaxPromptBytes
 	r.MaxCycles, r.MaxCalls, r.MaxWorkerCalls = config.MaxCycles, config.MaxPlannerCalls, config.MaxWorkerCalls
 	r.MaxRuntime = time.Duration(config.MaxRuntimeSeconds) * time.Second
 	r.MaxStalledCycles = 3

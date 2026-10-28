@@ -193,6 +193,7 @@ func MarkdownReport(state State) string {
 	var out strings.Builder
 	out.WriteString("# BuildHeadway run report\n\n")
 	out.WriteString(fenced(FormatStatus(state)))
+	out.WriteString("\n## Prompt context\n\n" + fenced(FormatContext(contextReport(state))))
 	out.WriteString("\n## Free-model routing\n\n" + fenced(FormatRouting(routingReport(state, time.Now()))))
 	if state.Mode == "figureout" {
 		out.WriteString("\n## Senior team\n\n" + fenced(FormatTeam(state.Team)))

@@ -125,6 +125,10 @@ func hardModelFailure(err error) bool {
 	if err == nil {
 		return false
 	}
+	var promptLimit promptLimitError
+	if errors.As(err, &promptLimit) {
+		return true
+	}
 	var setup mcpSetupError
 	if errors.As(err, &setup) {
 		return true
