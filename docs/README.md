@@ -2,7 +2,10 @@
 
 ## Use the terminal app
 
+- [Quickstart](quickstart.md): install, verify the command, open a project, connect and give the team a goal.
+
 - [Installation and troubleshooting](install.md): platform instructions, updates, diagnostics, and removal.
+- [Shell completions](completions.md): command, option and fixed-value suggestions for Bash, Zsh, Fish and PowerShell.
 - [Terminal usage](usage.md): connect agents, run goals, steer work, inspect evidence, and manage queues.
 - [Harness and recovery](harness.md): acceptance coverage, verified free routing, source consistency, interruption, and review.
 - [Extensions](extensions.md): project workflows, templates, skills, and executable hooks.
