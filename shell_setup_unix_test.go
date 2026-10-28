@@ -97,7 +97,8 @@ func TestShellCustomLocationsSymlinksAndInvalidProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, files, err := updateUserPath(filepath.Join(home, "bin"), true)
-	if err != nil || files[0] != target {
+	resolvedTarget, resolveErr := filepath.EvalSymlinks(target)
+	if err != nil || resolveErr != nil || len(files) != 2 || files[0] != resolvedTarget {
 		t.Fatal(files, err)
 	}
 	info, _ := os.Lstat(filepath.Join(home, ".bashrc"))

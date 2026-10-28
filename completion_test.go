@@ -99,7 +99,11 @@ func TestGeneratedCompletionWithAvailableShells(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			file := filepath.Join(t.TempDir(), "completion."+shell)
+			extension := shell
+			if shell == "powershell" {
+				extension = "ps1"
+			}
+			file := filepath.Join(t.TempDir(), "completion."+extension)
 			if err := os.WriteFile(file, []byte(script), 0600); err != nil {
 				t.Fatal(err)
 			}

@@ -178,7 +178,7 @@ func TestNativePromptLimitInspectionAndExplicitResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := setEnv(os.Environ(), "BUILDHEADWAY_HOME", filepath.Dir(paths.Config))
-	goal := strings.Repeat("retain full goal ", 2000)
+	goal := strings.Repeat("retain full goal ", 1200)
 	cmd := exec.Command(binary, "plan", "--project", repo, goal)
 	cmd.Env = env
 	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "prompt has") {
