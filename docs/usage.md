@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global ./buildheadway-0.22.0.tgz
+npm install --global ./buildheadway-0.26.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -386,3 +386,31 @@ Inspect full saved command output with `buildheadway logs`, then `buildheadway l
 Verification now checks source consistency at every command and review-hook boundary. If one command changes source, BuildHeadway invalidates that round before another command can restore the old files. Actual exit codes and logs are retained, and successful completion requires stable verification and fresh senior review.
 
 Senior reviews and consultations use bounded worker-report excerpts with explicit references to full saved evidence. Long reports keep both their beginning and end, while saved reports and handoffs remain intact.
+
+### Inspect a complete task
+
+```sh
+buildheadway tasks
+buildheadway tasks --task 1:0
+buildheadway tasks --json --task 1:0 RUN_ID
+```
+
+Select a key printed by the task list. The full saved instructions, report, error and execution metadata are available without resuming or modifying that goal. A reported task is still subject to executed verification and senior review.
+
+### Read earlier process output
+
+Use `buildheadway logs --offset 0 LOG_NAME` to inspect the beginning of a saved log. Add `--bytes N` to bound the page and `--json` for `next_offset`/`more` fields. Flags precede the filename. Omit `--offset` to keep the normal tail view. See the [harness guide](harness.md#page-through-long-verification-logs-024) for limits and continuation.
+
+### Recover queue capacity
+
+```sh
+buildheadway queue --json prune
+buildheadway queue archive QUEUE_ID
+buildheadway queue --json archive QUEUE_ID
+```
+
+Use an ID returned by pruning to inspect a finished record. `/queue prune` and `/queue archive QUEUE_ID` are also available in the app. Only completed/canceled history is removed from the active queue; unfinished work and all run checkpoints stay intact. See the [harness guide](harness.md#queue-history-and-capacity-025).
+
+### Browse finished queue goals
+
+Use `buildheadway queue archives` or `/queue archives` to discover archived IDs after pruning. Search with `buildheadway queue --search "words" archives` or `/queue archives words`. For automation, add `--json` before `archives`; `--limit` controls page size and `--after` continues from the returned ID. See the [harness guide](harness.md#find-archived-goals-026) for limits and read-only behavior.

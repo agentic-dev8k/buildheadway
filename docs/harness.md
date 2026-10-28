@@ -154,3 +154,43 @@ Full historical decisions and summaries remain in saved state and exports. Curre
 `buildheadway doctor` runs a quoted file-content check that must pass, then changes the isolated fixture and requires the same check to fail. The probe verifies quoted filenames, argument quotes, redirection and failure propagation. It uses a temporary directory that is removed afterwards, with a three-second timeout for each subprocess and the caller's cancellation context. No project command, model request or saved configuration change is involved. An executable merely being present on PATH is no longer enough to report the shell as usable.
 
 Windows checks retain the original command text for `cmd.exe /D /S /C` rather than applying ordinary executable argument escaping. Native Windows regressions execute quoted file checks and a helper whose path contains spaces; they also require wrong content to remain a failed check. This follows [Go's documented command-line quoting distinction for cmd.exe](https://pkg.go.dev/os/exec). Native macOS agent-discovery coverage compares the actual file identity so case-insensitive filename aliases do not produce a false failure.
+
+## Historical task handoffs (0.23)
+
+Planning and worker prompts include recent task evidence with the task key, status, model, attempts and timestamps. Long historical instructions, reports and errors retain both their beginning and end within the existing 2,000/1,500/1,000-byte limits. Truncation flags and `state.json:task_history[INDEX]` references identify omitted material. UTF-8 boundaries are preserved. Current task assignments, requirements, active consultation answers and acceptance evidence are not shortened by this projection.
+
+Use `buildheadway tasks` to find a durable key, then `buildheadway tasks --task 1:0` to read its full instructions, report and error. Add `--json` before the key flag for automation, and an optional run ID after the flags to inspect an earlier goal. The key identifies a ledger entry, even when several cycles reuse the same model task ID. Inspection does not call a model, acquire the controller lock, migrate the checkpoint on disk or imply that a task report passed acceptance. Full saved task evidence remains unchanged.
+
+## Page through long verification logs (0.24)
+
+```sh
+buildheadway logs --offset 0 --bytes 16000 LOG_NAME
+buildheadway logs --json --offset 16000 --bytes 16000 LOG_NAME
+buildheadway logs --last-check --offset 0 LOG_NAME
+```
+
+Choose an actual filename from `buildheadway logs`. The default remains a tail read; an explicit nonnegative `--offset` reads from that byte position. JSON supplies `offset`, `next_offset`, `more` and the observed total `bytes`. Continue from `next_offset` while `more` is true. Each page is capped at 1 MiB, including when a log is much larger than captured worker/check output. EOF returns an empty page; offsets beyond the observed size fail. Each call observes the current file size, so an actively growing log can change between calls. Byte boundaries can split multibyte text; saved log bytes remain unchanged.
+
+Prompt-only check and hook excerpts now retain both ends of captured output within 2,500 bytes, preserve UTF-8 boundaries, and retain existing truncation, exit/failure, source-change, duration and log-reference fields. This exposes an early diagnosis alongside the final outcome. Capture itself can already be truncated, so the beginning of a captured excerpt is not necessarily the beginning of the full log; use `--offset 0` to inspect that. Inspection does not rerun checks, write checkpoints or establish passing acceptance. Full logs, original records, budgets and completion gates are unchanged.
+
+## Queue history and capacity (0.25)
+
+The active queue retains up to 1,000 entries, including finished history. `buildheadway queue prune` (or `/queue prune`) archives completed and canceled entries, then removes those entries from the active queue so new goals can be added. Pending, running and blocked entries keep their order and fields. This never cancels a goal, changes a budget, resumes a blocked provider or edits a run checkpoint. It can run while a controller owns the project lock; normal queue locking coordinates writers.
+
+Each removed record is first atomically saved under `.forge/queue-archive/QUEUE_ID.json` in an independent version-1 wrapper. Its complete queued goal, mode, status, error, times and run reference are retained. All archives must succeed before the smaller queue is published. After interruption, matching per-goal files are reused, and conflicts block pruning instead of overwriting history. A failed attempt may leave some archives beside an unchanged queue; retry after resolving the error. An archive is historical metadata, not passing acceptance or permission to rerun a goal.
+
+Use `buildheadway queue --json prune` for counts and archived IDs, then `buildheadway queue archive QUEUE_ID` (or `/queue archive QUEUE_ID`) for inspection. Add `--json` before `archive` to retrieve the complete record. Archive files are limited to 1 MiB each; an oversized or conflicting record leaves queue entries intact. The no-op case leaves the queue file unchanged. Run checkpoints, full logs and their verification/senior-approval gates are preserved; this feature does not delete old runs or log files. Atomic archives and queue publication protect ordinary interruption/retry, not malicious concurrent filesystem writers.
+
+## Find archived goals (0.26)
+
+```sh
+buildheadway queue archives
+buildheadway queue --json --search "task tracker" --limit 20 archives
+buildheadway queue --json --after QUEUE_ID --limit 20 archives
+```
+
+Search is literal and case-insensitive across the full archived goal, queue ID and finished status. Flags go before `archives`. Results are sorted lexicographically by queue ID; the default page is 20 entries and the accepted range is 1–100. JSON supplies `more` and `next_after`. Repeat the same search with `--after NEXT_AFTER` while `more` is true. Each goal summary is limited to 240 UTF-8 bytes, preserves its beginning/end and marks truncation. Use `queue archive QUEUE_ID` for the full saved record.
+
+`/queue archives` and `/queue archives SEARCH` show the first matching page in the app. Use the CLI for later pages. The command scans directory batches and retains at most the requested page plus one matching summary. Searching can read all eligible archives; CLI scans stop on Ctrl+C or a 30-second deadline, and in-app scans have a 10-second deadline. Timeouts/cancellation are errors, not partial success. Invalid records encountered after the cursor fail clearly; unrelated filenames and symlink/non-regular entries are excluded. New archives can appear during a scan, so restart without a cursor to include newly added IDs that sort earlier.
+
+Discovery takes no controller/queue lock, makes no model calls and does not rewrite archives, queues or checkpoints. It is navigation evidence and never marks a goal complete, bypasses a provider blocker or authorizes requeueing.
