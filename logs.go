@@ -19,14 +19,16 @@ type LogEntry struct {
 	Bytes int64  `json:"bytes"`
 }
 type LogReport struct {
-	ID        string     `json:"id"`
-	Directory string     `json:"directory"`
-	Files     []LogEntry `json:"files,omitempty"`
-	Name      string     `json:"name,omitempty"`
-	Bytes     int64      `json:"bytes,omitempty"`
-	Offset    int64      `json:"offset,omitempty"`
-	Truncated bool       `json:"truncated"`
-	Output    string     `json:"output,omitempty"`
+	ID         string     `json:"id"`
+	Directory  string     `json:"directory"`
+	Files      []LogEntry `json:"files,omitempty"`
+	Name       string     `json:"name,omitempty"`
+	Bytes      int64      `json:"bytes"`
+	Offset     int64      `json:"offset"`
+	NextOffset int64      `json:"next_offset"`
+	More       bool       `json:"more"`
+	Truncated  bool       `json:"truncated"`
+	Output     string     `json:"output,omitempty"`
 }
 
 func validLogName(name string) bool {
@@ -38,6 +40,18 @@ func validLogName(name string) bool {
 // ReadLogs never starts an agent, reruns a check, or changes saved evidence.
 // Root-relative opens prevent traversal through renamed paths or symlinks.
 func ReadLogs(repo, id string, lastCheck bool, name string, limit int) (LogReport, error) {
+	return readLogRange(repo, id, lastCheck, name, limit, -1)
+}
+
+// ReadLogsAt selects a bounded byte range without changing logs or checkpoints.
+func ReadLogsAt(repo, id string, lastCheck bool, name string, limit int, offset int64) (LogReport, error) {
+	if offset < 0 || name == "" {
+		return LogReport{}, errors.New("log offset must be nonnegative and requires a log filename")
+	}
+	return readLogRange(repo, id, lastCheck, name, limit, offset)
+}
+
+func readLogRange(repo, id string, lastCheck bool, name string, limit int, offset int64) (LogReport, error) {
 	report := LogReport{}
 	if limit < 1 || limit > maxLogRead {
 		return report, errors.New("log bytes must be between 1 and 1048576")
@@ -138,13 +152,21 @@ func ReadLogs(repo, id string, lastCheck bool, name string, limit int) (LogRepor
 	}
 	report.Name, report.Bytes = name, info.Size()
 	report.Offset = max(int64(0), info.Size()-int64(limit))
-	report.Truncated = report.Offset > 0
-	data := make([]byte, info.Size()-report.Offset)
+	if offset >= 0 {
+		if offset > info.Size() {
+			return LogReport{}, errors.New("log offset exceeds the observed file size")
+		}
+		report.Offset = offset
+	}
+	data := make([]byte, min(int64(limit), info.Size()-report.Offset))
 	n, err := file.ReadAt(data, report.Offset)
 	if err != nil && err != io.EOF {
 		return report, err
 	}
 	report.Output = string(data[:n])
+	report.NextOffset = report.Offset + int64(n)
+	report.More = report.NextOffset < report.Bytes
+	report.Truncated = report.Offset > 0 || report.More
 	return report, nil
 }
 
@@ -154,7 +176,10 @@ func FormatLogs(report LogReport) string {
 	if report.Name != "" {
 		fmt.Fprintf(&out, "%s · %d bytes · offset %d\n", report.Name, report.Bytes, report.Offset)
 		if report.Truncated {
-			out.WriteString("[Earlier output omitted; increase --bytes up to 1048576 or open the file directly.]\n")
+			out.WriteString("[Output excerpt; use --offset 0 for the beginning, increase --bytes up to 1048576, or open the file directly.]\n")
+		}
+		if report.More {
+			fmt.Fprintf(&out, "[More output; continue with --offset %d.]\n", report.NextOffset)
 		}
 		out.WriteString(report.Output)
 	} else {
@@ -184,6 +209,7 @@ func runLogsCommand(args []string) int {
 	id := flags.String("run", "latest", "Saved goal ID")
 	last := flags.Bool("last-check", false, "Logs from the last standalone buildheadway check")
 	limit := flags.Int("bytes", 16000, "Maximum tail bytes, up to 1048576")
+	offset := flags.Int64("offset", -1, "Read from this byte offset instead of the tail (requires LOG_NAME)")
 	asJSON := flags.Bool("json", false, "Print machine-readable output")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -201,7 +227,19 @@ func runLogsCommand(args []string) int {
 	if flags.NArg() == 1 {
 		name = flags.Arg(0)
 	}
-	report, err := ReadLogs(*project, *id, *last, name, *limit)
+	selected := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "offset" {
+			selected = true
+		}
+	})
+	var report LogReport
+	var err error
+	if selected {
+		report, err = ReadLogsAt(*project, *id, *last, name, *limit, *offset)
+	} else {
+		report, err = ReadLogs(*project, *id, *last, name, *limit)
+	}
 	if err != nil {
 		return fail(err)
 	}

@@ -114,6 +114,30 @@ type HistoryEvidence struct {
 	Source    string `json:"source"`
 }
 
+// TaskEvidence is prompt-only. Inspection and saved checkpoints retain full text.
+type TaskEvidence struct {
+	TaskRecord
+	ReportTruncated       bool   `json:"report_truncated,omitempty"`
+	ErrorTruncated        bool   `json:"error_truncated,omitempty"`
+	InstructionsTruncated bool   `json:"instructions_truncated,omitempty"`
+	Source                string `json:"source"`
+}
+
+func recentTasks(records []TaskRecord, count int) []TaskEvidence {
+	out := make([]TaskEvidence, 0)
+	if count <= 0 {
+		return out
+	}
+	for i := max(0, len(records)-count); i < len(records); i++ {
+		item := TaskEvidence{TaskRecord: records[i], Source: fmt.Sprintf("state.json:task_history[%d]", i)}
+		item.Report, item.ReportTruncated = evidenceExcerpt(item.Report, 1500)
+		item.Error, item.ErrorTruncated = evidenceExcerpt(item.Error, 1000)
+		item.Task.Instructions, item.InstructionsTruncated = evidenceExcerpt(item.Task.Instructions, 2000)
+		out = append(out, item)
+	}
+	return out
+}
+
 func briefHistory(history []string, count int) []HistoryEvidence {
 	out := make([]HistoryEvidence, 0)
 	if count <= 0 {

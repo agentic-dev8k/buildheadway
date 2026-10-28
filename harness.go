@@ -355,23 +355,12 @@ func (r *Runner) recordVerification(snapshot string) {
 	r.State.VerificationSignature = signature
 	r.note("verification", fmt.Sprintf("%d checks executed; %d unchanged rounds", len(r.State.CheckResults), r.State.StalledCycles))
 }
-func recentTasks(records []TaskRecord, count int) []TaskRecord {
-	if len(records) > count {
-		records = records[len(records)-count:]
-	}
-	copy := append([]TaskRecord{}, records...)
-	for i := range copy {
-		copy[i].Report = Tail(copy[i].Report, 1500)
-		copy[i].Error = Tail(copy[i].Error, 1000)
-		copy[i].Task.Instructions = Tail(copy[i].Task.Instructions, 2000)
-	}
-	return copy
-}
 func briefChecks(checks []CheckResult) []CheckResult {
 	copy := append([]CheckResult{}, checks...)
 	for i := range copy {
-		copy[i].OutputTruncated = copy[i].OutputTruncated || len(copy[i].Output) > 2500
-		copy[i].Output = Tail(copy[i].Output, 2500)
+		var shortened bool
+		copy[i].Output, shortened = evidenceExcerpt(copy[i].Output, 2500)
+		copy[i].OutputTruncated = copy[i].OutputTruncated || shortened
 	}
 	return copy
 }
@@ -492,7 +481,7 @@ func FormatTasks(state State) string {
 	}
 	var out strings.Builder
 	for _, task := range state.TaskHistory {
-		fmt.Fprintf(&out, "[%s] %s · cycle %d · %d attempts\n", task.Status, task.Task.Title, task.Cycle, task.Attempts)
+		fmt.Fprintf(&out, "[%s] %s · %s · cycle %d · %d attempts\n", task.Status, task.Key, task.Task.Title, task.Cycle, task.Attempts)
 		if task.Model != "" {
 			fmt.Fprintf(&out, "  %s\n", task.Model)
 		}
@@ -556,8 +545,9 @@ func InspectRun(repo, id, kind string) (any, string, error) {
 func briefHooks(hooks []HookResult) []HookResult {
 	copy := append([]HookResult{}, hooks...)
 	for i := range copy {
-		copy[i].OutputTruncated = copy[i].OutputTruncated || len(copy[i].Output) > 2500
-		copy[i].Output = Tail(copy[i].Output, 2500)
+		var shortened bool
+		copy[i].Output, shortened = evidenceExcerpt(copy[i].Output, 2500)
+		copy[i].OutputTruncated = copy[i].OutputTruncated || shortened
 	}
 	return copy
 }

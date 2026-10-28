@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.26.0 — 2026-10-28
+
+- Added searchable archived-goal browsing with `queue archives` and `/queue archives [SEARCH]`. CLI pages contain up to 100 bounded goal summaries, sorted by ID, with stable `--after` continuation and case-insensitive ID/status/goal filtering.
+- Archive scans stream directory entries, retain at most one page plus a continuation candidate, and respond to cancellation/timeouts. Malformed records fail clearly; symlink/non-record entries are excluded and full archived evidence stays unchanged.
+- Added reader validation for goal metadata and discovery hints after pruning. Regression coverage exercises multi-batch ordering/pagination, Unicode summaries, case-insensitive search, cancellation, malformed data, read-only behavior, in-app commands and the actual installed CLI.
+- This release also includes the previously local 0.23–0.25 task evidence, log paging and queue archive improvements. Existing verification, price/budget, blocker and senior-approval gates remain intact.
+
+## 0.25.0 — 2026-10-28
+
+- Added `queue prune` and `/queue prune` to recover queue capacity by archiving completed/canceled entries before removing them from the active queue. Pending, running and blocked goals retain their order, identity and checkpoint bytes.
+- Added terminal/JSON and in-app archive inspection by queue ID. Independent version-1 archives retain full goal, mode, outcome, timestamps, errors and checkpoint references; each is limited to 1 MiB.
+- Interrupted pruning can reuse byte-identical per-goal archives. Conflicts, malformed data, invalid IDs, symlinks and oversized records fail without dropping queue entries. Run checkpoints and existing harness gates remain unchanged.
+
+## 0.24.0 — 2026-10-28
+
+- Added bounded byte-range log inspection with `logs --offset N`, continuation offsets and explicit remaining-output metadata. Default tail inspection is preserved; named-log containment, regular-file checks and the 1 MiB read cap apply to every page.
+- Historical check and hook prompt excerpts retain the beginning and end of captured diagnostics with valid UTF-8 and preserved failure, duration, source-change and log metadata. Saved outputs and acceptance gates remain unchanged.
+- Added paging, EOF, invalid-range, containment, read-only evidence and installed-launcher regressions. Checkpoint remains v12; full logs and original check/hook records are retained.
+
+## 0.23.0 — 2026-10-27
+
+- Retained the beginning and end of historical task instructions, reports and errors in bounded prompt excerpts, with explicit truncation flags and indexed references to complete saved evidence. Historical task state, attempts and model identity remain visible without modifying the durable ledger.
+- Added `buildheadway tasks --task KEY [RUN_ID]` for full, read-only terminal/JSON inspection of one saved task. Task lists now show durable keys so repeated model task IDs remain distinguishable.
+- Added regression coverage for real planning/worker prompt construction, Unicode boundaries, exact small values, empty windows, full checkpoint preservation and installed-package task inspection. Checkpoint v12 and all existing harness gates remain unchanged.
+
 ## 0.22.0 — 2026-10-27
 
 - Added project MCP configuration and terminal add/list/check/enable/disable/remove commands. Connection diagnostics use the official Go MCP SDK with real stdio/Streamable HTTP initialization and tool discovery, cancellation, bounded responses and credential-safe errors. Diagnostics do not invoke tools or models.

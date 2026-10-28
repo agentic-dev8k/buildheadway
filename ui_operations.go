@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -252,6 +253,26 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 			return m.startQueue(true), true
 		case "next":
 			return m.startQueue(false), true
+		case "prune":
+			return func() tea.Msg {
+				if value != "" {
+					return inspectionMsg{"Queue", "", errors.New("/queue prune accepts no arguments")}
+				}
+				report, err := PruneQueue(repo)
+				return inspectionMsg{"Queue", FormatQueuePrune(report), err}
+			}, true
+		case "archive":
+			return func() tea.Msg {
+				item, err := ReadQueueArchive(repo, value)
+				return inspectionMsg{"Queue archive", FormatQueue(GoalQueue{Version: 1, Items: []QueuedGoal{item}}), err}
+			}, true
+		case "archives":
+			return func() tea.Msg {
+				ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+				defer stop()
+				page, err := ListQueueArchives(ctx, repo, value, "", 20)
+				return inspectionMsg{"Queue archives", FormatQueueArchives(page), err}
+			}, true
 		case "add", "figureout":
 			mode := ""
 			if action == "figureout" || !m.demo {
@@ -284,7 +305,7 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 		case "", "list":
 			return func() tea.Msg { queue, err := ReadQueue(repo); return inspectionMsg{"Queue", FormatQueue(queue), err} }, true
 		default:
-			m.add("Queue", "Use /queue add GOAL, /queue run, /next, /queue remove ID, or /queue move ID POSITION.")
+			m.add("Queue", "Use /queue add GOAL, /queue run, /next, /queue remove ID, /queue move ID POSITION, /queue prune, /queue archives [SEARCH], or /queue archive ID.")
 			return nil, true
 		}
 	case "/init", "/config", "/memory", "/remember", "/buildheadwayt", "/diff", "/report", "/export", "/history":
