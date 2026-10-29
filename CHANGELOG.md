@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.29.0 — 2026-10-28
+
+- Added `completion bash|zsh|fish|powershell` and bounded syntax-only completion requests. Suggestions include commands, MCP/extension/queue actions, supported options and fixed values, with quoted arguments and option positions respected. Generating or using completions never loads project settings, discovers providers or invokes models.
+- Added shell setup documentation, real shell wrapper/CLI regressions and installed-package checks. Profile installation remains explicit and preserves existing user configuration.
+- Restored the documented 0.27–0.28 prompt admission, shared acceptance evidence, context inspection and cross-shell native installation behavior onto public 0.26 source after their unpublished source commits were lost from the transient workspace. The retained 0.28 binary and documentation are the compatibility reference; this is reconstructed implementation, not a claim of byte-identical source recovery.
+- Preserved the v12 `prompt_usage` schema, pinned limits, full evidence, prior name/settings compatibility, fresh free pricing, budgets, hard blockers, executed acceptance and senior review. New recovery tests cover over-limit retries, full-goal pause/resume and profile ownership after shell changes.
+
+## 0.28.0 — 2026-10-28
+
+- Added a concise install/verify/project/connect/goal quickstart and dedicated Windows, macOS, Linux and WSL instructions, based on a fresh review of official OpenCode/Pi guidance. Required package documentation now includes the quickstart.
+- Fixed native Bash installation for login terminals as well as interactive terminals, respecting the existing login-profile precedence. Zsh setup respects absolute `ZDOTDIR`, and Fish uses the configured XDG location.
+- Native installation records the actual modified profile files for cleanup after shell changes. Profile updates are atomic, retain file permissions and symlink targets, and remain unchanged on repeat installation. Uninstall preserves unrelated or replaced PATH blocks; older receipts remain supported.
+- Added real Bash command-resolution and native install/reinstall/uninstall regressions, plus custom-shell, symlink, permission, invalid-profile and installed-documentation coverage. Agent routing, authentication, budgets, acceptance and review gates are unchanged.
+
+## 0.27.0 — 2026-10-28
+
+- Shared acceptance diagnostics in planning/review prompts: every requirement retains its coverage and status, while evidence references point to the shared check results instead of copying their output once per requirement. Saved checks, inspection JSON and completion gates keep their existing evidence.
+- Added a 512 KiB default byte limit for complete BuildHeadway agent prompts, including council, consultation, worker continuation and repair/retry context. Oversized prompts pause before model discovery, invocation or call/health accounting; goals and active evidence are retained intact and no automatic model fallback occurs.
+- Added pinned `max_prompt_bytes` project configuration and an explicit `--max-prompt-bytes` invocation override for run, plan, figureout and resume. Limits accept 16 KiB–8 MiB; zero selects the default. Errors identify the actual prompt size, limit and recovery options.
+- Added `context [RUN_ID]`, JSON inspection and `/context [RUN_ID]` for the most recent 20 prompt-size measurements. Status and exported reports include context diagnostics without storing extra prompt text or claiming that fitting context passed verification.
+- Added regression and installed-launcher coverage for shared evidence, UTF-8 byte boundaries, all adapters, retries, saved goals, pinned configuration, budget accounting and resume with fresh verification and approval. Checkpoint remains v12.
+
 ## 0.26.0 — 2026-10-28
 
 - Added searchable archived-goal browsing with `queue archives` and `/queue archives [SEARCH]`. CLI pages contain up to 100 bounded goal summaries, sorted by ID, with stable `--after` continuation and case-insensitive ID/status/goal filtering.

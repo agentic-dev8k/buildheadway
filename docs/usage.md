@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global ./buildheadway-0.26.0.tgz
+npm install --global ./buildheadway-0.28.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -171,6 +171,7 @@ The senior team reads the project, discusses uncertain decisions, assigns tasks 
 | /status | See the phase, checks, and model-call counts |
 | /acceptance | Show requirement coverage and executed evidence |
 | /routing | Show free-model health, cooldowns and routing decisions |
+| /context [ID] | Inspect recent prompt sizes and context allowances |
 | /tasks | Inspect task attempts across all repair cycles |
 | /history [SEARCH] | Search saved goals for this project |
 | /plan YOUR GOAL | Save a plan; use /resume to implement it |
@@ -252,6 +253,7 @@ An optional project configuration can include:
   "checks": ["npm test", "npm run lint"],
   "context_files": ["docs/architecture.md"],
   "max_worker_calls": 30,
+  "max_prompt_bytes": 524288,
   "max_runtime_seconds": 7200,
   "check_timeout_seconds": 600,
   "planner_timeout_seconds": 900,
@@ -262,6 +264,8 @@ An optional project configuration can include:
 Use commands appropriate to your project; the example assumes those npm scripts exist. `platform_checks` can add commands under `windows`, `darwin`, and `linux`. BuildHeadway also detects npm/pnpm/yarn/bun scripts, Go, Cargo, Maven, and common pytest projects. Explicit project checks are required gates. Each new goal captures its configuration so edits during a run cannot silently loosen its checks or limits. Resuming keeps that captured configuration; `BUILDHEADWAY.md`, selected context files, and saved notes are refreshed. Context files must remain inside the project, including after symlink resolution.
 
 `max_cycles`, `max_planner_calls`, `max_worker_calls`, and `max_runtime_seconds` default to zero (no cap). Runtime budgets count active BuildHeadway execution across resumes, excluding time while the app is closed. Command timeouts are independent. CLI limits override project limits for that invocation; raise a limit with the matching flag when resuming a capped run. `max_stalled_cycles` defaults to three for ordinary goals and zero for figureout; an explicitly configured value takes precedence. Every senior proposal, critique, synthesis, and retry counts toward the planner-call budget.
+
+`max_prompt_bytes` bounds each complete prompt supplied by BuildHeadway to an agent. Its default is 512 KiB, with nonzero settings from 16 KiB to 8 MiB. Zero selects the default. An oversized prompt pauses without a new model call or fallback and preserves the full goal/evidence. Use `buildheadway resume --max-prompt-bytes 1048576 RUN_ID` for an explicit larger allowance, or reduce guidance/notes or split the goal. See [agent context admission](harness.md#agent-context-admission-027) for byte/token boundaries and saved-goal behavior.
 
 `/plan GOAL` saves the planner's tasks, checks, and criteria without dispatching implementation workers or running the harness checks. Inspect `/tasks` or `/report`, then `/resume` to implement the saved plan. Planning still calls the selected planner and may use its permitted inspection tools.
 

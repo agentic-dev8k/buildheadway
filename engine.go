@@ -39,6 +39,7 @@ type Runner struct {
 	MaxCycles, MaxCalls int
 	MaxStalledCycles    int
 	MaxWorkerCalls      int
+	MaxPromptBytes      int
 	MaxRuntime          time.Duration
 	PlanOnly            bool
 	lockHeld            bool
@@ -445,6 +446,17 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		if r.MaxCalls > 0 && r.State.PlannerCalls >= r.MaxCalls {
 			return Decision{}, limitError{"planner call limit reached; resume with a higher limit"}
 		}
+		if err := r.admitPrompt(prompt, func() string {
+			if callLabel != "" {
+				return callLabel
+			}
+			if review {
+				return "review"
+			}
+			return "plan"
+		}()); err != nil {
+			return Decision{}, err
+		}
 		connection := planner
 		if autoFree {
 			preferred := r.State.PlannerModel
@@ -621,6 +633,9 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		}
 	}
 	if r.Settings.Worker.Backend == "demo" {
+		if err := r.admitPrompt(prompt, "worker"); err != nil {
+			return result, err
+		}
 		if err := r.workerAttempt("simulated"); err != nil {
 			return result, err
 		}
@@ -643,6 +658,9 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		}
 		if r.MaxWorkerCalls > 0 && r.State.WorkerCalls >= r.MaxWorkerCalls {
 			return result, limitError{"worker-call budget reached; resume with a higher --max-worker-calls"}
+		}
+		if err := r.admitPrompt(prompt, "worker"); err != nil {
+			return result, err
 		}
 		preferred := ""
 		if session := r.State.WorkerSession; session != nil {
@@ -811,7 +829,7 @@ func (r *Runner) plannerPrompt(review bool) string {
 	}
 	evidence := map[string]any{
 		"goal": r.State.goalContext(), "required_checks": r.State.RequiredChecks, "suggested_checks": r.State.SuggestedChecks,
-		"success_criteria": r.State.SuccessCriteria, "acceptance": r.State.Acceptance, "acceptance_results": AcceptanceResults(r.State, Decision{}), "history": briefHistory(r.State.History, 6),
+		"success_criteria": r.State.SuccessCriteria, "acceptance": r.State.Acceptance, "acceptance_results": briefAcceptance(r.State), "history": briefHistory(r.State.History, 6),
 		"worker_results": briefWorkers(r.State.WorkerResults), "check_results": briefChecks(r.State.CheckResults), "hook_results": briefHooks(r.State.HookResults), "log_directory": r.Dir, "full_worker_evidence": filepath.Join(r.Dir, "state.json"),
 		"recent_tasks": recentTasks(r.State.TaskHistory, 12), "pending_tasks": r.State.Tasks[r.State.NextTask:],
 		"recovery": r.State.RecoveryNote, "unchanged_rounds": r.State.StalledCycles,

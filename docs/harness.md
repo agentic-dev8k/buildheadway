@@ -94,6 +94,24 @@ Agents can route questions, challenges and suggestions to other seniors or verif
 
 The harness enforces that recorded requirements have executed passing checks and fresh review. It cannot prove that a test covers all behavior, that every requirement was inferred correctly, or that a passing application has no defects. Reviewers still inspect real files and test coverage. A goal that requires browser interaction, an external service or native OS behavior needs suitable project checks and access to that environment.
 
+## Agent context admission (0.27)
+
+Each complete prompt supplied by BuildHeadway has a default limit of 524,288 bytes (512 KiB). This includes planning, senior council steps, consultations, worker assignments, active answers, continuations and repair/retry text. A prompt over the limit pauses the goal before a model is called for that prompt. Initial admission also precedes catalog discovery and model call/health accounting; a rejected retry does not count as another attempt. Ordinary earlier attempts retain their actual results. The harness does not silently drop requirements, shorten active instructions or switch models to get past the limit.
+
+The saved error identifies the prompt, its byte count and the allowed size. Inspect `buildheadway status`, saved tasks and logs; reduce project guidance/notes when appropriate or split the goal. To allow a larger prompt explicitly, use:
+
+```sh
+buildheadway resume --max-prompt-bytes 1048576 RUN_ID
+```
+
+Use `buildheadway context [RUN_ID]`, `buildheadway context --json [RUN_ID]` or `/context [RUN_ID]` to inspect the most recent 20 admission measurements. Each entry records the time, call label, actual bytes, applied limit and whether the prompt fits. The report also shows the pinned/default allowance, which can differ from an explicit invocation override. Status and Markdown exports include this information. Inspection works while the controller is busy, makes no model calls and leaves saved state unchanged. A fitting measurement is not proof that dispatch occurred or work passed: later pricing, access, budget or cancellation gates may still stop the call. Old goals without measurements report that absence; no history is invented. The added optional metadata keeps checkpoint v12 and does not retain a second copy of prompt text.
+
+New goals can pin `max_prompt_bytes` in `.buildheadway.json`. Accepted nonzero values range from 16,384 to 8,388,608 bytes; zero or an omitted setting uses the default, including for older checkpoints. An explicit CLI flag overrides the pinned setting for that invocation only; `--max-prompt-bytes 0` selects the default rather than disabling admission. The UI and queued goals use the pinned project/default allowance. Project edits cannot silently raise a saved goal's allowance. Resume still runs its normal recovery, checks and fresh approval. Checkpoint v12 and the existing pricing, provider-blocker, budget, source-consistency and acceptance gates remain in force.
+
+This is a byte limit on the prompt BuildHeadway supplies, not a token estimate or a promise that it fits a particular model. Attached agents may add their own instructions, tool results and history; their provider limits still apply. Admission does not bound prompt construction memory, full checkpoint/disk size or the attached agent's later context growth.
+
+Acceptance requirements often share checks. Planning/review prompts retain every criterion, status and mapped command, but `acceptance_results[].evidence_sources` points to `state.json:check_results[INDEX]` rather than duplicating each diagnostic in every row. Read the shared `check_results` excerpts and referenced full logs for diagnosis. Inspection/export JSON and the saved full results keep their existing evidence; references do not create independent passing evidence, omit a veto or relax a completion gate.
+
 ## Interrupted verification evidence (0.20)
 
 Commands and hooks save `duration_ms`, the exact process-log filename, bounded output and a `failure_kind` when they fail. Cancelling a running check retains its partial diagnostics before the run pauses. Cancelling before a command is attempted does not invent an execution result. `buildheadway check --json`, saved checkpoints, acceptance evidence, agent prompts, status and exports preserve these fields.

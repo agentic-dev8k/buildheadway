@@ -13,14 +13,15 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global ./buildheadway-0.26.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.29.0.tgz
+buildheadway --version
 cd my-project
 buildheadway
 ```
 
 This command works in Windows, macOS, and Linux terminals. All six x64/ARM64 binaries are included and verified by the launcher. No compiler, Python, or npm installation scripts are needed. The package is **not yet published to the npm registry**.
 
-Prefer a native installation without Node.js? See the [installation guide](docs/install.md).
+Follow the [quickstart](docs/quickstart.md) for first-run setup, or choose [Windows](docs/install.md#windows), [macOS](docs/install.md#macos), [Linux](docs/install.md#linux) or [WSL](docs/install.md#wsl). Native installation works without Node.js.
 
 ## Give it a goal
 
@@ -44,6 +45,7 @@ Start with the [documentation index](docs/README.md).
 
 | Guide | Covers |
 | --- | --- |
+| [Quickstart](docs/quickstart.md) | Install, connect and run your first goal |
 | [Install and troubleshoot](docs/install.md) | Windows, macOS, Linux, updates, and diagnostics |
 | [Terminal usage](docs/usage.md) | Agents, goals, commands, steering, queues, and settings |
 | [Harness and recovery](docs/harness.md) | Verification, acceptance, interruption, budgets, and completion gates |

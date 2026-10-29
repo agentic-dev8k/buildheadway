@@ -112,6 +112,9 @@ func LoadRun(repo, id string) (State, string, error) {
 	if state.HookRechecks < 0 {
 		return state, dir, errors.New("invalid hook recheck counter")
 	}
+	if err := validatePromptUsage(state.PromptUsage); err != nil {
+		return state, dir, err
+	}
 	if err := validateRouting(state); err != nil {
 		return state, dir, fmt.Errorf("invalid saved model routing: %w", err)
 	}
@@ -447,6 +450,10 @@ func FormatStatus(state State) string {
 		fmt.Fprintf(&out, "Figureout · %s access · %d seniors\n", state.Access, len(state.Team))
 	}
 	fmt.Fprintf(&out, "%s\n%s\n%s · %s · cycle %d\nBatch: %d/%d tasks reported · planner calls: %d · worker attempts: %d\n", state.RunID, state.Goal, state.Status, state.Phase, state.Cycle, state.NextTask, len(state.Tasks), state.PlannerCalls, state.WorkerCalls)
+	if len(state.PromptUsage) > 0 {
+		p := state.PromptUsage[len(state.PromptUsage)-1]
+		fmt.Fprintf(&out, "Last prompt: %s · %d/%d bytes (buildheadway context shows history)\n", p.Label, p.Bytes, p.LimitBytes)
+	}
 	fmt.Fprintf(&out, "Active time: %s\n", (time.Duration(state.ActiveMillis) * time.Millisecond).Round(time.Second))
 	if state.RoutingWait != nil && state.Status == "running" {
 		fmt.Fprintf(&out, "Waiting for a free %s model until %s; buildheadway routing shows health and cooldowns\n", state.RoutingWait.Role, state.RoutingWait.Until)
@@ -513,6 +520,9 @@ func InspectRun(repo, id, kind string) (any, string, error) {
 	switch kind {
 	case "status":
 		return state, FormatStatus(state), nil
+	case "context":
+		report := contextReport(state)
+		return report, FormatContext(report), nil
 	case "routing":
 		report := routingReport(state, time.Now())
 		return report, FormatRouting(report), nil

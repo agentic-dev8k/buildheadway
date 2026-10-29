@@ -16,15 +16,16 @@ import (
 )
 
 type InstallReceipt struct {
-	Repository  string `json:"repository,omitempty"`
-	Application string `json:"application"`
-	Version     string `json:"version"`
-	Executable  string `json:"executable"`
-	SHA256      string `json:"sha256"`
-	OS          string `json:"os"`
-	Arch        string `json:"arch"`
-	InstalledAt string `json:"installed_at"`
-	PathAdded   bool   `json:"path_added"`
+	Repository  string   `json:"repository,omitempty"`
+	Application string   `json:"application"`
+	Version     string   `json:"version"`
+	Executable  string   `json:"executable"`
+	SHA256      string   `json:"sha256"`
+	OS          string   `json:"os"`
+	Arch        string   `json:"arch"`
+	InstalledAt string   `json:"installed_at"`
+	PathAdded   bool     `json:"path_added"`
+	PathFiles   []string `json:"path_files,omitempty"`
 }
 
 func IsBuildHeadwayBinary(path string) bool {
@@ -111,19 +112,23 @@ func InstallSelf(paths Paths, directory string, updatePath bool) (string, error)
 	receipt := InstallReceipt{Repository: repository, Application: "BuildHeadway", Version: Version, Executable: target, SHA256: fmt.Sprintf("%x", hash), OS: runtime.GOOS, Arch: runtime.GOARCH, InstalledAt: time.Now().UTC().Format(time.RFC3339)}
 	if previous.Application == "BuildHeadway" && filepath.Clean(previous.Executable) == filepath.Clean(target) {
 		receipt.PathAdded = previous.PathAdded
+		receipt.PathFiles = append([]string(nil), previous.PathFiles...)
 		if receipt.Repository == "" {
 			receipt.Repository = previous.Repository
 		}
 	}
+	var pathErr error
 	if updatePath {
-		added, err := UpdateUserPath(directory, true)
-		if err != nil {
-			return target, fmt.Errorf("BuildHeadway was installed, but PATH could not be updated: %w", err)
-		}
+		added, files, err := updateUserPath(directory, true)
 		receipt.PathAdded = receipt.PathAdded || added
+		receipt.PathFiles = Unique(append(receipt.PathFiles, files...))
+		pathErr = err
 	}
 	if err := AtomicJSON(receiptPath, receipt); err != nil {
 		return target, err
+	}
+	if pathErr != nil {
+		return target, fmt.Errorf("BuildHeadway was installed, but PATH could not be updated: %w", pathErr)
 	}
 	return target, nil
 }
@@ -136,7 +141,11 @@ func UninstallSelf(paths Paths) error {
 		return errors.New("the installation receipt does not point to a BuildHeadway executable")
 	}
 	if receipt.PathAdded {
-		if _, err := UpdateUserPath(filepath.Dir(receipt.Executable), false); err != nil {
+		if len(receipt.PathFiles) > 0 {
+			if err := removeRecordedPathFiles(receipt.PathFiles, filepath.Dir(receipt.Executable)); err != nil {
+				return err
+			}
+		} else if _, err := UpdateUserPath(filepath.Dir(receipt.Executable), false); err != nil {
 			return err
 		}
 	}
@@ -150,6 +159,9 @@ const pathStart = "# >>> buildheadway terminal app >>>"
 const pathEnd = "# <<< buildheadway terminal app <<<"
 
 func ManagedPathBlock(content, directory string, add bool, fish bool) string {
+	if add && strings.Contains(content, pathStart+"\n"+shellPathLine(directory, fish)+"\n"+pathEnd) {
+		return content
+	}
 	start := strings.Index(content, pathStart)
 	if start >= 0 {
 		if end := strings.Index(content[start:], pathEnd); end >= 0 {
@@ -163,10 +175,7 @@ func ManagedPathBlock(content, directory string, add bool, fish bool) string {
 	if !add {
 		return content
 	}
-	line := "export PATH=" + ShellQuote(directory) + ":\"$PATH\""
-	if fish {
-		line = "fish_add_path --path " + ShellQuote(directory)
-	}
+	line := shellPathLine(directory, fish)
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}

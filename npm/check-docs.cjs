@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const requiredDocs = [
   'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'docs/README.md',
-  'docs/install.md', 'docs/usage.md', 'docs/harness.md', 'docs/extensions.md', 'docs/mcp.md',
+  'docs/quickstart.md', 'docs/completions.md', 'docs/install.md', 'docs/usage.md', 'docs/harness.md', 'docs/extensions.md', 'docs/mcp.md',
   'docs/branding.md', 'docs/maintainers/naming.md',
   'docs/maintainers/publishing.md', 'docs/maintainers/validation.md',
 ];

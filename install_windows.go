@@ -54,14 +54,13 @@ func replaceInstalledFile(source, target string) error {
 	return nil
 }
 
-func UpdateUserPath(directory string, add bool) (bool, error) {
+func updateUserPath(directory string, add bool) (bool, []string, error) {
 	if root := brandEnv("BUILDHEADWAY_HOME"); root != "" {
-		content := ManagedPathBlock("", directory, add, false)
-		return add, os.WriteFile(filepath.Join(root, "shell-path.conf"), []byte(content), 0600)
+		return updateShellProfiles([]string{filepath.Join(root, "shell-path.conf")}, directory, add, false)
 	}
 	key, _, err := registry.CreateKey(registry.CURRENT_USER, "Environment", registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	defer key.Close()
 	current, valueType, _ := key.GetStringValue("Path")
@@ -75,7 +74,7 @@ func UpdateUserPath(directory string, add bool) (bool, error) {
 		}
 	}
 	if add && present {
-		return false, nil
+		return false, nil, nil
 	}
 	if add {
 		parts = append(parts, directory)
@@ -87,13 +86,13 @@ func UpdateUserPath(directory string, add bool) (bool, error) {
 		err = key.SetExpandStringValue("Path", value)
 	}
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	user32 := windows.NewLazySystemDLL("user32.dll")
 	broadcast := user32.NewProc("SendMessageTimeoutW")
 	name, _ := windows.UTF16PtrFromString("Environment")
 	broadcast.Call(0xffff, 0x001A, 0, uintptr(unsafe.Pointer(name)), 0x0002, 1000, 0)
-	return add, nil
+	return add, nil, nil
 }
 func RemoveInstalledExecutable(path string) error {
 	self, _ := os.Executable()
