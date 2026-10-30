@@ -166,6 +166,28 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.throws(() => taskRead(['status', '--task', '1:0', runID]), error => error.status !== 0);
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), taskBytes);
 
+  const inputName = '120000-worker.prompt.txt';
+  const inputText = 'EXACT GOAL: preserve saved evidence\nChanged / Verification / Remaining\n';
+  fs.writeFileSync(path.join(runDir, inputName), inputText, {mode: 0o600});
+  const beforeInputs = fs.readFileSync(path.join(runDir, 'state.json'));
+  assert.equal(JSON.parse(taskRead(['inputs', '--json'])).files[0].name, inputName);
+  const inputPage = JSON.parse(taskRead(['inputs', '--json', '--offset', '0', '--bytes', '11', inputName]));
+  assert.equal(inputPage.output, inputText.slice(0, 11));
+  assert.equal(inputPage.next_offset, 11);
+  assert.equal(inputPage.more, true);
+  assert.equal(JSON.parse(taskRead(['inputs', '--json', '--offset', '11', inputName])).output, inputText.slice(11));
+  assert.match(taskRead(['inputs', inputName]), /EXACT GOAL/);
+  for (const args of [['inputs', '--offset', '-1', inputName], ['inputs', '--offset', '0'], ['inputs', '../state.json'], ['inputs', inputName, '--json'], ['logs', inputName]]) {
+    assert.throws(() => taskRead(args), error => error.status !== 0);
+  }
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeInputs);
+  assert.equal(taskRead(['__complete', 'inputs', '--current=--of']), '--offset\n');
+  const browserStatus = JSON.parse(taskRead(['browser', 'status', '--json']));
+  assert.equal(browserStatus.ready, false);
+  assert.equal(browserStatus.enabled, false);
+  assert.equal(browserStatus.provider, '0.0.83');
+  assert.equal(taskRead(['__complete', 'browser', '--current=ver']), 'verify\n');
+
   assert.equal(JSON.parse(buildheadway(['events', '--json']))[0].kind, 'task-reported');
   assert.equal(JSON.parse(buildheadway(['discussion', '--json'])), null); // Older runs have no council transcript.
   fs.writeFileSync(path.join(home, 'config', 'connection.json'), JSON.stringify({
@@ -330,7 +352,10 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(JSON.parse(buildheadway(['status', '--json'])).run_id, runID, 'upgrade must retain project checkpoints');
   assert.equal(fs.readFileSync(settings, 'utf8'), 'preserve user configuration');
   const binary = path.join(installed, 'bin', binaryName());
-  fs.appendFileSync(binary, 'tampered');
+  const tampered = binary + '.tampered';
+  fs.writeFileSync(tampered, Buffer.concat([fs.readFileSync(binary), Buffer.from('tampered')]));
+  fs.chmodSync(tampered, 0o755);
+  fs.renameSync(tampered, binary);
   assert.throws(() => buildheadway(['--version']), error => error.status === 2 && /integrity verification/.test(error.stderr), 'a changed native binary must never launch');
   npm(['uninstall', '--global', pkg.name]);
   assert.ok(!fs.existsSync(path.join(bin, process.platform === 'win32' ? 'buildheadway.cmd' : 'buildheadway')));
