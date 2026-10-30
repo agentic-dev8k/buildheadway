@@ -1,6 +1,6 @@
 {
   "name": "buildheadway",
-  "version": "0.29.0",
+  "version": "0.33.0",
   "description": "BuildHeadway terminal coding agent: communicating senior teams, free workers, and verified repair loops.",
   "license": "MIT",
   "bin": {
