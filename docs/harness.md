@@ -1,5 +1,7 @@
 # Autonomous coding harness
 
+[Browser acceptance checks](browser.md) execute actions and positive assertions with screenshot evidence under the existing source snapshots, coverage and senior review. Tool availability or a screenshot alone does not establish acceptance.
+
 Give the app a goal. Senior agents plan and critique, verified free workers implement, the harness executes verification, and seniors review the actual result. Goals continue through repairs until completion, user interruption, configured budgets, or a real provider/access blocker.
 
 ## Free-model recovery
@@ -83,6 +85,8 @@ These extra fingerprints add file-reading work proportional to the project size 
 Generated and dependency directories such as `node_modules`, `dist`, `.git` and `.buildheadway` are excluded from source fingerprints. Checks run in the actual project, and symlink destinations are not traversed by fingerprinting. This is a consistency check for ordinary concurrent edits, not an isolation boundary against a malicious process.
 
 ## Shared instructions and recovery
+
+The [automatic instructions guide](prompts.md) describes the stage-specific planning, work orders, consultations, repairs and review prompts. Workers receive the current goal/steering, task, host shell and required verification context. Handoff reports distinguish changes, executed checks and remaining work. Reports remain evidence to assess; the execution and approval gates below still decide completion.
 
 All planners, reviewers and workers receive root `AGENTS.md`, `CLAUDE.md` and `BUILDHEADWAY.md` guidance, plus configured context files and saved project notes. Duplicate files are included once. Existing path containment, file type and size checks apply. Root guidance is refreshed on startup/resume; nested instructions remain available for the attached agent to inspect in its task's scope.
 
