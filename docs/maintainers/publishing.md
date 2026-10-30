@@ -14,7 +14,7 @@ python3 release.py --output dist --repository OWNER/REPOSITORY
 
 `OWNER/REPOSITORY` must be the actual chosen repository. Omit `--repository` for an offline candidate with no public update source.
 
-The build creates `dist/buildheadway-0.29.0.tgz` and `dist/buildheadway.zip` after the npm integration checks pass. The npm package is the user installation artifact. The ZIP contains the source, native builds, standalone terminal installers, license notices, and validation details.
+The build creates `dist/buildheadway-0.33.0.tgz` and `dist/buildheadway.zip` after the npm integration checks pass. The npm package is the user installation artifact. The ZIP contains the source, native builds, standalone terminal installers, license notices, and validation details.
 
 The included native CI must run on Windows, macOS, and Linux before describing the release as verified on all three. Cross-compilation does not count as native execution. This candidate is unsigned.
 
@@ -26,7 +26,7 @@ Once the package has passed review, the maintainer can run:
 
 ```sh
 npm login
-npm publish ./dist/buildheadway-0.29.0.tgz --access public
+npm publish ./dist/buildheadway-0.33.0.tgz --access public
 ```
 
 Publication requires the maintainer's account and any npm verification. Credentials are not included in this project. Prefer npm trusted publishing when connecting a repository release pipeline.
