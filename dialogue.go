@@ -275,12 +275,13 @@ func (r *Runner) routeDialogue(ctx context.Context) error {
 
 func (r *Runner) advicePrompt(frame DialogueFrame) string {
 	evidence, _ := json.Marshal(map[string]any{
+		"platform": promptPlatform(), "required_checks": r.State.RequiredChecks, "suggested_checks": r.State.SuggestedChecks,
 		"goal": r.State.goalContext(), "project_guidance": r.State.ProjectContext, "project_memory": r.State.ProjectMemory,
 		"tasks": r.State.Tasks, "worker_handoff": briefHandoff(r.State.WorkerSession),
 		"worker_results": briefWorkers(r.State.WorkerResults), "check_results": briefChecks(r.State.CheckResults), "hook_results": briefHooks(r.State.HookResults), "log_directory": r.Dir, "full_worker_evidence": filepath.Join(r.Dir, "state.json"),
 		"success_criteria": r.State.SuccessCriteria,
 	})
-	return "INTERNAL TEAM CONSULTATION\nYou are " + frame.To + ", replying to " + frame.From + ".\n" + frame.Kind + ": " + frame.Question +
+	return "INTERNAL TEAM CONSULTATION\nYou are " + frame.To + ", replying to " + frame.From + ".\n" + agentWorkingAgreement + promptJSONSection("CONSULTATION REQUEST", map[string]string{"from": frame.From, "to": frame.To, "kind": frame.Kind, "question": frame.Question}) +
 		"\nGive advice for this exact question, using the evidence and file-reading tools. You are not executing the goal or reviewing completion in this invocation. " +
 		"Do not run shell commands, tests, hashes, edits, or implementation tools. Use read/glob/grep for source inspection. A teammate's request to run a check is a proposed future action, not permission to execute it in this advice call. " +
 		"If the requested evidence does not exist yet, explain that and recommend the next concrete action; do not stall or invent results. The worker and verification loop perform those actions. " +
@@ -394,7 +395,7 @@ INTERNAL TEAM COMMUNICATION
 You can ask a senior or a free coding peer for help while implementing, and then continue from their actual answer. If the assignment is flawed, challenge it rather than silently making a different product. End this invocation with exactly one JSON object:
 {"buildheadway_worker":1,"status":"consult","report":"What you inspected or changed, and what you need next","messages":[{"to":"lead","kind":"question","text":"Your concrete question"}]}
 BuildHeadway routes these messages, returns the answers, and invokes you again to continue this same task. Other recipients may also consult teammates. Do not ask the human routine questions. Do not launch another agent yourself.
-Use status="complete", messages=[] when this assignment is implemented; put an accurate implementation and test report in report. Use status="replan" when the team should change or split the assignment; report the concrete blocker and proposed next step. Replan is not completion of the goal.
+Use status="complete", messages=[] when this assignment is implemented; put concise Changed, Verification and Remaining sections in report as a string. Keep the same JSON fields. Use status="replan" when the team should change or split the assignment; report the concrete blocker and proposed next step. Replan is not completion of the goal.
 `
 
 func (r *Runner) collaborativeWork(ctx context.Context, task Task) (result WorkerResult, runErr error) {
@@ -415,13 +416,7 @@ func (r *Runner) collaborativeWork(ctx context.Context, task Task) (result Worke
 				return result, err
 			}
 		}
-		continuation := ""
-		if session.Round > 0 {
-			continuation = "\nCONTINUE THE SAME ASSIGNMENT\nYour previous report: " + handoffReport(session.Report) + r.dialogueContext() + "\nInspect current files. Continue from the team's answers; do not replay completed changes."
-			if session.Round >= 8 {
-				continuation += "\nMake an implementation decision now. If still blocked, return status=replan with messages=[] and a concrete proposal for the senior team."
-			}
-		}
+		continuation := r.workerContinuationPrompt(session)
 		var err error
 		result, err = r.workOnce(ctx, task, continuation)
 		if err != nil {

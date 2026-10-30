@@ -49,6 +49,7 @@ func completionTree() completionNode {
 	add("pause init config memory remember buildheadwayt check diff report next workflows skills prompts hooks steering", completionNode{flags: project})
 	add("export", completionNode{flags: append(append([]completionFlag{}, project...), f("--output", true), f("--force", false))})
 	add("steer", completionNode{flags: []completionFlag{f("--project", true), f("--run", true)}})
+	add("inputs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--bytes", true), f("--offset", true))})
 	add("logs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--last-check", false), f("--bytes", true), f("--offset", true))})
 	add("workflow skill prompt", completionNode{flags: append(append([]completionFlag{}, project...), f("--preview", false))})
 	queue := completionNode{flags: project, children: map[string]completionNode{}}
@@ -64,6 +65,17 @@ func completionTree() completionNode {
 	mcp.children["add"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--url", true), f("--token-env", true), f("--timeout", true), f("--env", true))}
 	mcp.children["check"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--timeout", true))}
 	root.children["mcp"] = mcp
+	browser := completionNode{children: map[string]completionNode{}, childFirst: true, childFlags: true}
+	for _, action := range strings.Fields("status setup enable disable check verify add-check remove-check") {
+		browser.children[action] = completionNode{flags: project}
+	}
+	for _, action := range []string{"setup", "enable"} {
+		browser.children[action] = completionNode{flags: append(append([]completionFlag{}, project...), f("--executable", true))}
+	}
+	for _, action := range []string{"verify", "add-check"} {
+		browser.children[action] = completionNode{flags: append(append([]completionFlag{}, project...), f("--file", true))}
+	}
+	root.children["browser"] = browser
 	ext := completionNode{flags: project, children: map[string]completionNode{}, childFirst: true, childFlags: true}
 	ext.children["list"] = completionNode{flags: project}
 	ext.children["init"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--user", false), completionFlag{"--kind", true, []string{"skill", "prompt"}})}

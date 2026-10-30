@@ -244,15 +244,15 @@ func (r *Runner) councilPrompt(review bool, step int, round *CouncilRound) strin
 		role = "Resolve the proposals and critiques into ONE ordered, non-overlapping worker batch. Address every unresolved issue; merge duplicate tasks. A reviewer veto prevents completion this round, even if you disagree."
 	}
 	decisions, _ := json.Marshal(round.Decisions)
-	return r.plannerPrompt(review) + "\nFIGUREOUT COUNCIL\nYou are senior " + member.Name + ". " + role +
-		"\nThe user requested autonomous execution. Make reasonable product and engineering choices, record assumptions, and keep working without routine clarification. " +
-		"Workers do implementation; coordinate through your JSON decision and the shared discussion. Never launch a nested coding agent. " +
-		"Define concrete acceptance criteria proportional to the goal: working user flows, failure handling, meaningful tests, build/start instructions, and no unfinished placeholders. " +
-		"Review actual files and executed checks, not merely worker claims. Avoid unrelated features or endless polish beyond the user's scope. " +
-		"If the same checks keep failing, diagnose the root cause and change strategy, split the task, or use another implementation approach. " +
-		"A missing login or account policy is a real blocker; never invent credentials or success. " +
-		"When reviewing, done=true is your explicit approval of this exact workspace and all acceptance criteria. Otherwise supply useful corrective work and checks. " +
-		"Output the required JSON only.\nCURRENT ROUND DECISIONS:\n" + string(decisions) + "\nRECENT AGENT DISCUSSION:\n" + discussionContext(r.State, 8)
+	return r.plannerPromptFor(review, "\nFIGUREOUT COUNCIL\nYou are senior "+member.Name+". "+role+
+		"\nThe user requested autonomous execution. Make reasonable product and engineering choices, record assumptions, and keep working without routine clarification. "+
+		"Workers do implementation; coordinate through your JSON decision and the shared discussion. Never launch a nested coding agent. "+
+		"Define concrete acceptance criteria proportional to the goal: working user flows, failure handling, meaningful tests, build/start instructions, and no unfinished placeholders. "+
+		"Review actual files and executed checks, not merely worker claims. Avoid unrelated features or endless polish beyond the user's scope. "+
+		"If the same checks keep failing, diagnose the root cause and change strategy, split the task, or use another implementation approach. "+
+		"A missing login or account policy is a real blocker; never invent credentials or success. "+
+		"When reviewing, done=true is your explicit approval of this exact workspace and all acceptance criteria. Otherwise supply useful corrective work and checks. "+
+		"Output the required JSON only.\n") + "\nCURRENT ROUND DECISIONS:\n" + string(decisions) + "\nRECENT AGENT DISCUSSION:\n" + discussionContext(r.State, 8)
 }
 func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) {
 	for {
@@ -375,6 +375,9 @@ func decisionMessage(d Decision) string {
 // Reviewers must still inspect the test coverage and acceptance criteria.
 func usefulCheck(command string) bool {
 	s := strings.ToLower(strings.TrimSpace(command))
+	if strings.Contains(strings.ToLower(s), "buildheadway browser check") {
+		return false
+	}
 	if s == "" || s == "true" || s == ":" || s == "exit 0" || s == "exit /b 0" {
 		return false
 	}

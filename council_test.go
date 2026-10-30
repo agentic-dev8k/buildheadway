@@ -261,6 +261,13 @@ func TestFigureOutUIQueueAndHelp(t *testing.T) {
 // Real subprocess probe: exercises argv, stdin, env and adapter response
 // parsing on every native CI OS without requiring an account or model call.
 func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "--internal-browser-server" {
+		os.Exit(runMain(os.Args[1:]))
+	}
+	if len(os.Args) > 1 && strings.HasSuffix(os.Args[1], "provider-fixture.cli") {
+		browserProtocolFixture()
+		os.Exit(0)
+	}
 	if capture := os.Getenv("BUILDHEADWAY_TEST_ADAPTER_CAPTURE"); capture != "" {
 		if contains(os.Args[1:], "--help") {
 			os.Stdout.WriteString("--pure --format --model --file --dir --auto --no-mcp --no-approve --output-format --prompt --approval-mode --mcp-config --strict-mcp-config")

@@ -166,7 +166,7 @@ func verificationRound(ctx context.Context, paths Paths, repo, dir string, confi
 		}
 		return nil
 	}
-	err = runVerification(ctx, paths, repo, dir, commands, time.Duration(config.CheckTimeoutSeconds)*time.Second, demo, emit,
+	err = runVerificationConfigured(ctx, paths, repo, dir, config, commands, time.Duration(config.CheckTimeoutSeconds)*time.Second, demo, emit,
 		func(command string) error { return unchanged("before check " + command) }, func(result CheckResult) error {
 			boundaryErr := unchanged("after check " + result.Command)
 			result.SourceChanged = errors.Is(boundaryErr, errHookChangedFiles)

@@ -17,6 +17,7 @@ import (
 )
 
 type ProjectConfig struct {
+	BrowserChecks         []BrowserCheck       `json:"browser_checks,omitempty"`
 	MaxPromptBytes        int                  `json:"max_prompt_bytes,omitempty"`
 	MCPServers            map[string]MCPServer `json:"mcp_servers,omitempty"`
 	Acceptance            []AcceptanceCheck    `json:"acceptance,omitempty"`
@@ -73,6 +74,9 @@ func LoadProjectConfig(repo string) (ProjectConfig, error) {
 	return config, ValidateProjectConfig(config)
 }
 func ValidateProjectConfig(config ProjectConfig) error {
+	if e := validateBrowserChecks(config); e != nil {
+		return e
+	}
 	if !validPromptLimit(config.MaxPromptBytes) {
 		return errors.New("max_prompt_bytes must be zero or between 16384 and 8388608")
 	}
@@ -127,7 +131,11 @@ func ValidateProjectConfig(config ProjectConfig) error {
 	return nil
 }
 func (c ProjectConfig) RequiredChecks() []string {
-	return Unique(append(append(append([]string{}, c.Checks...), c.PlatformChecks[runtime.GOOS]...), acceptanceCommands(c.Acceptance)...))
+	v := append(append(append([]string{}, c.Checks...), c.PlatformChecks[runtime.GOOS]...), acceptanceCommands(c.Acceptance)...)
+	for _, p := range c.BrowserChecks {
+		v = append(v, "@browser:"+p.Name)
+	}
+	return Unique(v)
 }
 func localContextPath(name string) bool {
 	name = strings.ReplaceAll(name, `\`, "/")

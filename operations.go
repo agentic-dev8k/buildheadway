@@ -24,6 +24,9 @@ type VerificationReport struct {
 }
 
 func runVerification(ctx context.Context, paths Paths, repo, dir string, commands []string, timeout time.Duration, demo bool, emit Emit, before func(string) error, record func(CheckResult) error) error {
+	return runVerificationConfigured(ctx, paths, repo, dir, DefaultProjectConfig(), commands, timeout, demo, emit, before, record)
+}
+func runVerificationConfigured(ctx context.Context, paths Paths, repo, dir string, config ProjectConfig, commands []string, timeout time.Duration, demo bool, emit Emit, before func(string) error, record func(CheckResult) error) error {
 	if emit == nil {
 		emit = noEmit
 	}
@@ -51,10 +54,39 @@ func runVerification(ctx context.Context, paths Paths, repo, dir string, command
 		}
 		logPath := filepath.Join(dir, fmt.Sprintf("%s-check-%02d.log", time.Now().UTC().Format("150405.000000"), index+1))
 		started := time.Now()
-		result, runErr := RunProcess(ctx, argv, repo, logPath, "", setEnv(ToolEnv(paths), "CI", "1"), timeout, nil)
-		result, evidence := verificationEvidence(ctx, result, runErr, started)
-		check := CheckResult{ExecutionEvidence: evidence, Command: command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(logPath), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}
+		var check CheckResult
+		var hard error
+		if strings.HasPrefix(command, "@browser:") {
+			plan, e := browserPlan(config, command)
+			if e != nil {
+				hard = e
+				check = CheckResult{Command: command, ExitCode: -1, ExecutionEvidence: ExecutionEvidence{FailureKind: "execution", Error: e.Error()}}
+			} else {
+				check, hard = RunBrowserCheck(ctx, paths, repo, dir, config, plan)
+			}
+			check.Log = filepath.Base(logPath)
+			if e := os.WriteFile(logPath, []byte(check.Output+check.Error), 0600); e != nil {
+				hard = errors.Join(hard, e)
+			}
+		} else {
+			handoff, nonce, e := newBrowserHandoff(repo)
+			if e != nil {
+				return e
+			}
+			env := setEnv(setEnv(setEnv(ToolEnv(paths), "CI", "1"), "BUILDHEADWAY_BROWSER_CHECK_HANDOFF", handoff), "BUILDHEADWAY_BROWSER_CHECK_NONCE", nonce)
+			result, runErr := RunProcess(ctx, argv, repo, logPath, "", env, timeout, nil)
+			result, evidence := verificationEvidence(ctx, result, runErr, started)
+			hard = readBrowserHandoff(repo, handoff, nonce)
+			if hard != nil {
+				evidence.FailureKind = "execution"
+				evidence.Error = hard.Error()
+			}
+			check = CheckResult{ExecutionEvidence: evidence, Command: command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(logPath), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}
+		}
 		recordErr := record(check)
+		if hard != nil {
+			return errors.Join(hard, recordErr)
+		}
 		if ctx.Err() != nil {
 			return errors.Join(ctx.Err(), recordErr)
 		}
@@ -62,8 +94,8 @@ func runVerification(ctx context.Context, paths Paths, repo, dir string, command
 			return recordErr
 		}
 		text := "Passed"
-		if result.Code != 0 {
-			text = "Failed (exit " + itoa(result.Code) + ")"
+		if !check.Passed() {
+			text = "Failed (exit " + itoa(check.ExitCode) + ")"
 		}
 		emit(Event{Kind: "check-result", Text: text})
 	}

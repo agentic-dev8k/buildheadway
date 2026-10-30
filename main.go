@@ -42,6 +42,9 @@ func runMain(args []string) int {
 		fmt.Println("All three addition checks passed")
 		return 0
 	}
+	if len(args) > 0 && args[0] == "--internal-browser-server" {
+		return runBrowserServer(args[1:])
+	}
 	paths, err := UserPaths()
 	if err != nil {
 		return fail(err)
@@ -136,6 +139,10 @@ func runMain(args []string) int {
 			return runExtensionsCommand(paths, args[1:])
 		case "mcp":
 			return runMCPCommand(paths, args[1:])
+		case "browser":
+			return runBrowserCommand(paths, args[1:])
+		case "inputs":
+			return runInputsCommand(args[1:])
 		case "logs":
 			return runLogsCommand(args[1:])
 		case "steer":
@@ -189,6 +196,8 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway tasks                Show durable task history")
 		fmt.Println("  buildheadway history              List saved goals")
 		fmt.Println("  buildheadway logs                 Inspect full saved verification and agent logs")
+		fmt.Println("  buildheadway inputs               Inspect actual saved agent prompts")
+		fmt.Println("  buildheadway browser status       Inspect the built-in browser runtime")
 		fmt.Println("  buildheadway events               Show recent harness activity")
 		fmt.Println("  buildheadway init                 Add project guidance and settings")
 		fmt.Println("  buildheadway plan \"your goal\"     Save a plan for later implementation")

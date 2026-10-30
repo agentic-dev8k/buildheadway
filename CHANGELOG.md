@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.33.0 — 2026-10-30
+
+- Added `inputs`, `/inputs` and shell completions for read-only inspection of actual saved agent prompts. Named reads support bounded tails or forward byte pages, JSON continuation metadata and existing path/regular-file controls; inspection never invokes a model or changes checkpoints.
+- Reconstructed the unpublished 0.30–0.32 terminal controls, managed browser/MCP acceptance and professional agent instructions onto public 0.29 source after their scratch source was lost. The retained 0.32 installer and guides are compatibility references, not recovered Go source. Existing browser profiles/plans remain portable; older private runtime receipts may require `browser setup` again.
+- Added real subprocess/protocol and installed-CLI regressions for browser proof, screenshot integrity, setup blockers through zero-exit wrappers, origin checks, deadlines, source changes, pinned resume/review, owned server cleanup and transactional setup. UI tests cover explicit palette dispatch, draft recovery, bounded scrollback and terminal sizing; real terminal tests inspect exact dispatched work orders and consultation handoffs.
+- Corrected the pinned provider integration against actual upstream tool discovery: acceptance uses its `browser_run_code_unsafe` tool, and runtime integrity checks include the installed core bundle.
+- Preserved checkpoint v12, explicit models, fresh zero-price checks, budgets, hard blockers, source snapshots, acceptance coverage and senior approval. The approved branding and terminal previews remain byte-identical. npm publication is still a separate authenticated step.
+
+## 0.32.0 — 2026-10-30
+
+- Added distinct planning, implementation, consultation, repair and review instructions with scoped autonomy, self-contained task handoffs and concise Changed/Verification/Remaining reports. Normal terminal requests keep the existing autonomous workflow; no extra mode or command is required.
+- Workers now receive a structured work order with the complete goal/steering, task/key, host OS and verification shell, required and suggested checks, success criteria and acceptance mappings. Consultation advice also receives platform and check context. Active requirements and durable records remain intact.
+- Separated consultation questions, previous handoffs and retry diagnostics into JSON evidence sections. Retry excerpts preserve both ends with valid UTF-8 and truncation flags; decision retries keep only the latest diagnostic instead of accumulating stale failures. Actual teammate answers remain complete.
+- Added regressions for preserved work orders, bounded retries, consultation/continuation and real repair-loop delivery, plus terminal and installed-package evidence. Existing model selection/pricing, tool restrictions, prompt admission, budgets, source snapshots, acceptance and senior gates remain enforced; checkpoint v12 and response protocols are unchanged.
+
+## 0.31.0 — 2026-10-30
+
+- Added a private, pinned Playwright browser MCP runtime, portable project profiles, clean stdio forwarding to supported full-access seniors, status/setup/diagnostics and explicit installed-Chromium selection. Workers and restricted consultations keep their tool limits; native desktop CUA is not included.
+- Added declarative browser acceptance plans, mandatory `@browser:NAME` checks and `browser verify --file PLAN.json` for apps scaffolded during a goal. Actual actions/assertions, bounded screenshot evidence, source snapshots, deadlines and owned foreground-process cleanup participate in verification. Setup failures block without fallback; resume reruns browser checks before review.
+- Added credential-variable references, origin checks, redacted logs, atomic refusal to remove required coverage, diagnostic no-op rejection and backend-specific agent-help caching. Existing pricing, budgets, provider blockers, checkpoint v12, settings compatibility and exact brand artwork remain intact.
+- Reconstructed the 0.30 terminal controls after its unpublished source was pruned, using public 0.29 source and the verified 0.30 installer/docs as the compatibility reference. This is not byte-identical recovery of the missing source. Validation records distinguish reconstructed-source tests, protocol fixtures and any actual browser/native execution.
+
+## 0.30.0 — 2026-10-29
+
+- Added a searchable Ctrl+P and `/commands` palette for built-in terminal commands. Selection fills the editor for explicit review; a second Enter executes it. Esc and submission recover the original unsent draft. Search is bounded, local and independent of providers or project configuration.
+- Kept scrollback stable while new output arrives, added unread-entry status, mouse-wheel navigation and Ctrl+Home/Ctrl+End controls, and retained visible messages when the bounded transcript drops older entries. Active goals continue under their existing budgets and pause controls.
+- Reworked the layout for smaller terminals, Unicode display widths, long paths/status labels and scrolling connection/model lists. Tiny windows keep drafts intact and refuse hidden input while retaining Ctrl+C pause/quit. Added live call counts and a packaged terminal guide.
+- Added interaction and recovery regressions for explicit dispatch, exact saved evidence, draft preservation, provider blockers, pause, resizing and transcript bounds. Existing model/pricing, checkpoint v12, verification and senior-approval controls are unchanged. npm publication remains pending account authentication.
+
 ## 0.29.0 — 2026-10-28
 
 - Added `completion bash|zsh|fish|powershell` and bounded syntax-only completion requests. Suggestions include commands, MCP/extension/queue actions, supported options and fixed values, with quoted arguments and option positions respected. Generating or using completions never loads project settings, discovers providers or invokes models.

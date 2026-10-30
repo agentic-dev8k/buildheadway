@@ -91,6 +91,16 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 			_ = value
 			return inspectionMsg{"Context", formatted, err}
 		}, true
+	case "/inputs":
+		return func() tea.Msg {
+			r, err := ReadInputs(repo, "latest", argument, 16000, -1)
+			return inspectionMsg{"Inputs", FormatInputs(r), err}
+		}, true
+	case "/browser":
+		return func() tea.Msg {
+			v, err := BrowserStatusFor(paths, repo)
+			return inspectionMsg{"Browser", FormatBrowser(v), err}
+		}, true
 	case "/logs":
 		return func() tea.Msg {
 			report, err := ReadLogs(repo, "latest", false, argument, 16000)

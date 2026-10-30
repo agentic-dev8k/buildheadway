@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -158,30 +159,12 @@ func CheckMCP(parent context.Context, paths Paths, repo, name string, server MCP
 	}
 	ctx, cancel := context.WithTimeout(parent, server.timeout())
 	defer cancel()
-	var transport mcp.Transport
-	if server.Command != "" {
-		command, err := PreparedCommand(ctx, append([]string{server.Command}, server.Args...), ToolEnv(paths))
-		if err != nil {
-			return result, fmt.Errorf("MCP server %s executable is unavailable; check command and PATH", name)
-		}
-		command.Dir, command.Env, command.Stderr = repo, mcpProcessEnv(paths, server), io.Discard
-		command.Env = setEnv(command.Env, "PWD", repo)
-		configureProcess(command)
-		command.Cancel = func() error { return terminateProcess(command) }
-		command.WaitDelay = time.Second
-		transport = &mcpCommandTransport{command}
-	} else {
-		token := ""
-		if server.BearerTokenEnv != "" {
-			token = os.Getenv(server.BearerTokenEnv)
-		}
-		client := &http.Client{Transport: mcpHTTPTransport{base: http.DefaultTransport, token: token}, Timeout: server.timeout(), CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("MCP diagnostic redirects are not followed")
-		}}
-		transport = &mcp.StreamableClientTransport{Endpoint: server.URL, HTTPClient: client, MaxRetries: -1, DisableStandaloneSSE: true, MaxEventSize: mcpDiagnosticLimit}
+	resolved, err := resolveBrowserServer(paths, server, filepath.Join(repo, ".forge", "browser-diagnostics"), false)
+	if err != nil {
+		return result, err
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "buildheadway-check", Version: Version}, &mcp.ClientOptions{Capabilities: &mcp.ClientCapabilities{}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	session, err := client.Connect(ctx, transport, nil)
+	session, err := connectMCP(ctx, paths, repo, name, resolved)
+
 	// Server/transport errors may contain echoed credentials or credential URLs.
 	// Never include their raw text in terminal output, JSON, checkpoints or reports.
 	failure := func() error {
@@ -228,4 +211,31 @@ func CheckMCP(parent context.Context, paths Paths, repo, name string, server MCP
 		cursor, seenCursors[listed.NextCursor] = listed.NextCursor, true
 	}
 	return MCPCheckReport{Name: name}, errors.New("MCP tool listing exceeds 16 pages")
+}
+
+func connectMCP(ctx context.Context, paths Paths, repo, name string, server MCPServer) (*mcp.ClientSession, error) {
+	var transport mcp.Transport
+	if server.Command != "" {
+		command, err := PreparedCommand(ctx, append([]string{server.Command}, server.Args...), ToolEnv(paths))
+		if err != nil {
+			return nil, fmt.Errorf("MCP server %s executable is unavailable; check command and PATH", name)
+		}
+		command.Dir, command.Env, command.Stderr = repo, mcpProcessEnv(paths, server), io.Discard
+		command.Env = setEnv(command.Env, "PWD", repo)
+		configureProcess(command)
+		command.Cancel = func() error { return terminateProcess(command) }
+		command.WaitDelay = time.Second
+		transport = &mcpCommandTransport{command}
+	} else {
+		token := ""
+		if server.BearerTokenEnv != "" {
+			token = os.Getenv(server.BearerTokenEnv)
+		}
+		client := &http.Client{Transport: mcpHTTPTransport{base: http.DefaultTransport, token: token}, Timeout: server.timeout(), CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("MCP diagnostic redirects are not followed")
+		}}
+		transport = &mcp.StreamableClientTransport{Endpoint: server.URL, HTTPClient: client, MaxRetries: -1, DisableStandaloneSSE: true, MaxEventSize: mcpDiagnosticLimit}
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "buildheadway-check", Version: Version}, &mcp.ClientOptions{Capabilities: &mcp.ClientCapabilities{}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	return client.Connect(ctx, transport, nil)
 }
