@@ -40,6 +40,13 @@ jobs:
           go vet -buildvcs=false ./...
           node --test npm/test/docs.test.cjs
           node npm/check-docs.cjs
+      - name: Actual POSIX terminal workflow and saved inputs
+        if: runner.os != 'Windows'
+        run: |
+          go build -buildvcs=false -o "$RUNNER_TEMP/buildheadway-terminal" .
+          python3 scripts/terminal_conversation_test.py "$RUNNER_TEMP/buildheadway-terminal" --extensions
+      - name: Actual pinned upstream browser MCP protocol (no Chromium launch)
+        run: python3 scripts/browser_protocol_test.py
       - name: Fresh private Windows shell setup
         if: runner.os == 'Windows'
         env:
