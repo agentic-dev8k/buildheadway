@@ -15,10 +15,10 @@ Choose the environment that contains your project and development tools. After i
 
 ## 1. Install and verify
 
-Download `buildheadway-0.33.0.tgz`. With Node.js 20+ and npm, open a terminal in the download folder and run:
+Download `buildheadway-0.34.0.tgz`. With Node.js 20+ and npm, open a terminal in the download folder and run:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.33.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.34.0.tgz
 buildheadway --version
 ```
 

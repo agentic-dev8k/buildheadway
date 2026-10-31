@@ -57,6 +57,23 @@ The 60-second default total deadline can be set to 1–300 seconds, further capp
 
 Passing requires executed actions, a positive assertion and a fully decoded valid PNG. Results retain completed step/assertion counts, provider version, image path relative to the run/check directory, size, SHA256, duration and failure details. Logs omit raw responses, snapshots, selectors, input values and URLs. Screenshots are capped at 8 MiB, 8192 pixels per dimension and 16 megapixels; harness MCP messages at 1 MiB. Attached agents apply their own MCP response limits. Provider output uses a 32 MiB eviction threshold, not a hard disk quota. Explicit image files also receive the harness checks; a valid PNG header alone does not pass.
 
+For required `@browser:NAME` checks, the goal harness reopens each saved image before and after senior review and compares its complete PNG, SHA256, byte count and dimensions. An image deleted or changed by a hook, reviewer or another process invalidates acceptance even when source files are unchanged. All checks execute again and seniors must approve the new evidence. Three invalidated rounds in one invocation pause for diagnosis; stop the writer or fix the check, then resume. Existing runtime/call budgets, pause requests and provider blockers still stop work. The harness does not dispatch another implementation worker merely to recover a changed image.
+
+Inspect the actual saved files from any project terminal:
+
+```sh
+buildheadway browser evidence
+buildheadway browser evidence --run RUN_ID --json
+buildheadway browser evidence --last-check
+buildheadway browser evidence --report BROWSER_VERIFY_REPORT_ID
+```
+
+`/browser evidence` supports the same selectors inside the app, including while agents are running. The default selects the latest goal. `--last-check` selects the latest standalone `check`; `--report` selects a report from `.forge/browser-checks/`, not the diagnostic namespace. Select one scope at a time. No browser runtime, connection or model is needed.
+
+Results show the recorded outcome separately from current image integrity (`valid`, `invalid`, `partial` or `not_recorded`). Valid images do not prove that the application, source or tests are currently correct. Missing images after a failed check are reported as not recorded. Invalid recorded images produce a nonzero CLI exit after printing the report. Inspection reads at most 32 MiB of saved JSON and 4096 check records, then applies the existing image bounds; oversized records fail with a diagnostic. Reads are contained to the project and saved evidence directory; symlink records and images are rejected. Files can change between inspection calls.
+
+`status`, `acceptance`, `report` and `export` also project current goal screenshot integrity. They preserve the historical outcome and original execution fields while marking invalidated checks unverified with `evidence_error`. Inspection never rewrites a checkpoint, approves a goal or reruns a test. Restoring a previously invalidated image alone cannot clear a saved integrity failure; execute checks again. These completion gates apply to screenshot records attached to the goal's browser checks; a separate shell command or nested `browser verify` report is not silently imported into a goal's evidence ledger.
+
 Acceptance URLs use numeric loopback HTTP(S), such as `127.0.0.1` or `[::1]`. The top page's origin is checked before every action. This catches accidental navigation; it is not a security boundary for untrusted sites, redirects between checks or subresources. Senior tools retain full-access semantics and can navigate more broadly. Isolated profiles are not an OS sandbox for arbitrary application code.
 
 Missing/corrupt runtime files, missing credential variables, unsupported adapters and MCP startup/initial navigation failures are blockers. A unique, bounded verification handoff also carries these blockers through nested shell/npm commands; a wrapper exit code cannot silently convert them into passing evidence. They stop without model fallback or dropping requirements, including a pause racing with recording. Initial navigation is treated conservatively as a blocker because browser readiness has not been established. Later action/assertion failures remain failed checks for repair. Resume reruns checks before fresh senior approval. Setup, tool listings and screenshots alone cannot authorize completion.
