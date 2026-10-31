@@ -345,9 +345,15 @@ func (r *Runner) recordVerification(snapshot string) {
 	fmt.Fprintln(hash, snapshot)
 	for _, check := range r.State.CheckResults {
 		fmt.Fprintf(hash, "%s\x00%d\n", check.Command, check.ExitCode)
+		if check.BrowserFailure != nil {
+			fmt.Fprintln(hash, "nested-browser-failed")
+		}
 	}
 	for _, hook := range r.State.HookResults {
 		fmt.Fprintf(hash, "%s\x00%d\n", hook.Name, hook.ExitCode)
+		if hook.BrowserFailure != nil {
+			fmt.Fprintln(hash, "nested-browser-failed")
+		}
 	}
 	signature := hex.EncodeToString(hash.Sum(nil))
 	if signature == r.State.VerificationSignature {

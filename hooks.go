@@ -33,7 +33,7 @@ type HookResult struct {
 }
 
 func (h HookResult) Passed() bool {
-	return h.ExitCode == 0 && !h.SourceChanged && h.FailureKind == "" && h.Error == ""
+	return h.ExitCode == 0 && h.BrowserFailure == nil && !h.SourceChanged && h.FailureKind == "" && h.Error == ""
 }
 
 type HookInput struct {
@@ -121,21 +121,33 @@ func runHooks(ctx context.Context, paths Paths, repo, dir string, config Project
 			seconds = 120
 		}
 		emit(Event{Kind: "check", Text: "Hook " + hook.Name + " · " + hook.Event})
-		env := setEnv(setEnv(setEnv(ToolEnv(paths), "CI", "1"), "BUILDHEADWAY_HOOK_EVENT", hook.Event), "BUILDHEADWAY_PROJECT", repo)
+		handoff, nonce, err := newBrowserHandoff(repo)
+		if err != nil {
+			return err
+		}
+		env := setEnv(setEnv(browserCommandEnv(paths, repo, handoff, nonce), "BUILDHEADWAY_HOOK_EVENT", hook.Event), "BUILDHEADWAY_PROJECT", repo)
 		env = setEnv(setEnv(env, "FORGE_HOOK_EVENT", hook.Event), "FORGE_PROJECT", repo)
 		env = setEnv(setEnv(env, "CODENTRAIL_HOOK_EVENT", hook.Event), "CODENTRAIL_PROJECT", repo)
 		log := fmt.Sprintf("%s/%s-hook-%s.log", dir, time.Now().UTC().Format("150405.000000000"), hook.Name)
 		started := time.Now()
 		result, runErr := RunProcess(ctx, ShellCommand(hook.Command), repo, log, string(data)+"\n", env, time.Duration(seconds)*time.Second, nil)
 		result, evidence := verificationEvidence(ctx, result, runErr, started)
+		evidence, hard := browserProcessEvidence(repo, handoff, nonce, evidence)
 		recordErr := record(HookResult{ExecutionEvidence: evidence, Name: hook.Name, Event: hook.Event, Command: hook.Command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(log), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000})
+		if hard != nil {
+			return errors.Join(hard, recordErr)
+		}
 		if ctx.Err() != nil {
 			return errors.Join(ctx.Err(), recordErr)
 		}
 		if recordErr != nil {
 			return recordErr
 		}
-		emit(Event{Kind: "check-result", Text: fmt.Sprintf("Hook %s · exit %d", hook.Name, result.Code)})
+		text := fmt.Sprintf("Hook %s · exit %d", hook.Name, result.Code)
+		if evidence.BrowserFailure != nil {
+			text = fmt.Sprintf("Hook %s · failed browser verification (wrapper exit %d)", hook.Name, result.Code)
+		}
+		emit(Event{Kind: "check-result", Text: text})
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
