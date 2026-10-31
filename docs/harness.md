@@ -84,6 +84,12 @@ These extra fingerprints add file-reading work proportional to the project size 
 
 Generated and dependency directories such as `node_modules`, `dist`, `.git` and `.buildheadway` are excluded from source fingerprints. Checks run in the actual project, and symlink destinations are not traversed by fingerprinting. This is a consistency check for ordinary concurrent edits, not an isolation boundary against a malicious process.
 
+## Browser failures inside scripts and hooks (0.35)
+
+A nested `buildheadway browser verify` or `browser check` failure cannot be converted into passing verification merely by returning exit zero from its wrapper. The parent check or hook retains its real process outcome and a separate `browser_failure` diagnostic with an optional child-report reference. Ordinary failures return to repair; hard MCP/setup failures keep precedence and block without fallback. Read [browser failure propagation](browser.md#failures-inside-scripts-and-hooks) for scope and bounds.
+
+The same metadata appears in saved results, status JSON, reports and agent prompts. Failed nested checks invalidate acceptance, and failed nested hooks cannot pass hook gates. Parent cancellation/timeouts retain their own execution fields. Fresh attempts cannot reuse old handoffs; repeated failed reports still count toward configured stalled-cycle limits, and actual recovery counts as progress. Resume and senior approval gates remain unchanged.
+
 ## Shared instructions and recovery
 
 The [automatic instructions guide](prompts.md) describes the stage-specific planning, work orders, consultations, repairs and review prompts. Workers receive the current goal/steering, task, host shell and required verification context. Handoff reports distinguish changes, executed checks and remaining work. Reports remain evidence to assess; the execution and approval gates below still decide completion.

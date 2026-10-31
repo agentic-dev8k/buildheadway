@@ -9,7 +9,7 @@ For the complete first-run flow, start with the [quickstart](quickstart.md). Cho
 With Node.js 20+ and npm, run this in the folder containing the downloaded package:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.34.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.35.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
