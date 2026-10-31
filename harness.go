@@ -464,6 +464,7 @@ func FormatStatus(state State) string {
 	for _, check := range state.CheckResults {
 		fmt.Fprintf(&out, "  exit %d · %s\n", check.ExitCode, check.Command)
 		fmt.Fprint(&out, sourceChangeNotice(check.SourceChanged))
+		fmt.Fprint(&out, evidenceIntegrityNotice(check.EvidenceError))
 		fmt.Fprint(&out, executionNotice(check.ExecutionEvidence))
 	}
 	if len(state.Steering) > 0 {
@@ -513,7 +514,11 @@ func InspectRun(repo, id, kind string) (any, string, error) {
 		rows, err := RunHistory(repo)
 		return rows, FormatHistory(rows), err
 	}
-	state, _, err := LoadRun(repo, id)
+	load := LoadRun
+	if kind == "status" || kind == "acceptance" {
+		load = loadRunWithEvidence
+	}
+	state, _, err := load(repo, id)
 	if err != nil {
 		return nil, "", err
 	}

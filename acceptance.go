@@ -94,7 +94,7 @@ func AcceptanceResults(state State, answer Decision) []AcceptanceResult {
 						row.Evidence = append(row.Evidence, evidence)
 						if result.ExitCode != 0 || result.FailureKind != "" || result.Error != "" {
 							row.Status = "failed"
-						} else if result.SourceChanged && row.Status != "failed" {
+						} else if (result.SourceChanged || result.EvidenceError != "" || !result.Passed()) && row.Status != "failed" {
 							row.Status = "unverified"
 						}
 					}

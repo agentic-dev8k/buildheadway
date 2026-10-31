@@ -66,7 +66,7 @@ func completionTree() completionNode {
 	mcp.children["check"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--timeout", true))}
 	root.children["mcp"] = mcp
 	browser := completionNode{children: map[string]completionNode{}, childFirst: true, childFlags: true}
-	for _, action := range strings.Fields("status setup enable disable check verify add-check remove-check") {
+	for _, action := range strings.Fields("status setup enable disable check verify evidence add-check remove-check") {
 		browser.children[action] = completionNode{flags: project}
 	}
 	for _, action := range []string{"setup", "enable"} {
@@ -75,6 +75,7 @@ func completionTree() completionNode {
 	for _, action := range []string{"verify", "add-check"} {
 		browser.children[action] = completionNode{flags: append(append([]completionFlag{}, project...), f("--file", true))}
 	}
+	browser.children["evidence"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--last-check", false), f("--report", true))}
 	root.children["browser"] = browser
 	ext := completionNode{flags: project, children: map[string]completionNode{}, childFirst: true, childFlags: true}
 	ext.children["list"] = completionNode{flags: project}

@@ -39,7 +39,7 @@ func (b *BrowserEvidence) valid() bool {
 	if e != nil || len(decoded) != 32 {
 		return false
 	}
-	return b != nil && b.Provider == browserProvider && b.Steps > 0 && b.Assertions > 0 && b.Steps <= 64 && b.Assertions <= b.Steps && b.Bytes > 0 && b.Bytes <= 8<<20 && len(b.SHA256) == 64 && filepath.IsLocal(b.Screenshot) && strings.HasSuffix(b.Screenshot, ".png") && b.Width > 0 && b.Height > 0 && b.Width <= 8192 && b.Height <= 8192 && b.Width*b.Height <= 16<<20
+	return b != nil && b.Provider == browserProvider && b.Steps > 0 && b.Assertions > 0 && b.Steps <= 64 && b.Assertions <= b.Steps && b.Bytes > 0 && b.Bytes <= 8<<20 && len(b.SHA256) == 64 && len(b.Screenshot) <= 512 && filepath.IsLocal(b.Screenshot) && strings.HasSuffix(b.Screenshot, ".png") && b.Width > 0 && b.Height > 0 && b.Width <= 8192 && b.Height <= 8192 && b.Width*b.Height <= 16<<20
 }
 func browserPNG(dir, name string) (*BrowserEvidence, error) {
 	root, e := os.OpenRoot(dir)
@@ -47,8 +47,16 @@ func browserPNG(dir, name string) (*BrowserEvidence, error) {
 		return nil, e
 	}
 	defer root.Close()
+	return browserPNGAt(root, name)
+}
+func browserPNGAt(root *os.Root, name string) (*BrowserEvidence, error) {
+	// Stored Windows paths remain inspectable after copying a run to POSIX.
+	name = filepath.FromSlash(strings.ReplaceAll(name, `\`, "/"))
 	st, e := root.Lstat(name)
-	if e != nil || !st.Mode().IsRegular() {
+	if e != nil {
+		return nil, e
+	}
+	if !st.Mode().IsRegular() {
 		return nil, errors.New("browser screenshot must be a regular PNG file")
 	}
 	f, e := root.Open(name)

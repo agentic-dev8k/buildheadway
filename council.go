@@ -375,7 +375,7 @@ func decisionMessage(d Decision) string {
 // Reviewers must still inspect the test coverage and acceptance criteria.
 func usefulCheck(command string) bool {
 	s := strings.ToLower(strings.TrimSpace(command))
-	if strings.Contains(strings.ToLower(s), "buildheadway browser check") {
+	if strings.Contains(s, "buildheadway browser check") || strings.Contains(s, "buildheadway browser evidence") {
 		return false
 	}
 	if s == "" || s == "true" || s == ":" || s == "exit 0" || s == "exit /b 0" {

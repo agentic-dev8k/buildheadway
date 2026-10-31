@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.0 — 2026-10-31
+
+- Browser acceptance screenshots are revalidated before and after senior review against their saved SHA256, size and decoded dimensions. Changed, deleted or malformed images invalidate acceptance and require executed checks and fresh approval. Three invalidated rounds pause for diagnosis; configured budgets and provider blockers retain precedence.
+- Added `browser evidence` and `/browser evidence` for read-only inspection of saved goal, standalone check and browser verify screenshots. JSON exposes integrity, recorded outcome, image metadata and precise failure reasons without browser installation or model access. Invalid evidence exits nonzero; inspection cannot substitute for application tests.
+- Status, acceptance, reports and exports project current screenshot integrity without rewriting saved outcomes or checkpoint bytes. Original exits, output, duration and logs remain intact; an integrity failure stays latched until a new check executes. Checkpoint remains v12 with optional additive metadata.
+- Added actual PNG/file/process/CLI regressions for review corruption, deleting hooks, bounded recovery, resume, hard blockers, budgets, containment, malformed records and installed terminal commands. Model and browser page replies remain simulated in account-free tests.
+
 ## 0.33.0 — 2026-10-30
 
 - Added `inputs`, `/inputs` and shell completions for read-only inspection of actual saved agent prompts. Named reads support bounded tails or forward byte pages, JSON continuation metadata and existing path/regular-file controls; inspection never invokes a model or changes checkpoints.

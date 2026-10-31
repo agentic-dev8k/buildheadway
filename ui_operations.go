@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -97,6 +98,22 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 			return inspectionMsg{"Inputs", FormatInputs(r), err}
 		}, true
 	case "/browser":
+		if argument != "" {
+			return func() tea.Msg {
+				args, err := workflowArguments(argument)
+				if err != nil || len(args) == 0 || args[0] != "evidence" {
+					return inspectionMsg{"Browser", "", errors.New("use /browser for status or /browser evidence [--run ID | --last-check | --report ID]")}
+				}
+				o, err := parseBrowserEvidenceOptions(args[1:], repo, io.Discard)
+				if err != nil {
+					return inspectionMsg{"Browser", "", err}
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				report, err := InspectBrowserEvidence(ctx, o.Project, o.Run, o.LastCheck, o.Report)
+				return inspectionMsg{"Browser evidence", FormatBrowserEvidence(report), err}
+			}, true
+		}
 		return func() tea.Msg {
 			v, err := BrowserStatusFor(paths, repo)
 			return inspectionMsg{"Browser", FormatBrowser(v), err}
@@ -366,7 +383,7 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 					formatted, err = ExportRun(repo, argument, "", false, false)
 				} else {
 					var state State
-					state, _, err = LoadRun(repo, argument)
+					state, _, err = loadRunWithEvidence(repo, argument)
 					formatted = MarkdownReport(state)
 				}
 			}

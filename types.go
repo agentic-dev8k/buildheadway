@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.33.0"
+const Version = "0.34.0"
 
 type Paths struct {
 	Config string `json:"config"`
@@ -177,7 +177,8 @@ type RunEvent struct {
 	Text string `json:"text"`
 }
 type CheckResult struct {
-	Browser *BrowserEvidence `json:"browser,omitempty"`
+	Browser       *BrowserEvidence `json:"browser,omitempty"`
+	EvidenceError string           `json:"evidence_error,omitempty"`
 	ExecutionEvidence
 	Command         string `json:"command"`
 	ExitCode        int    `json:"exit_code"`
@@ -188,7 +189,7 @@ type CheckResult struct {
 }
 
 func (c CheckResult) Passed() bool {
-	return c.ExitCode == 0 && !c.SourceChanged && c.FailureKind == "" && c.Error == "" && (!strings.HasPrefix(c.Command, "@browser:") || c.Browser.valid())
+	return c.ExitCode == 0 && c.EvidenceError == "" && !c.SourceChanged && c.FailureKind == "" && c.Error == "" && (!strings.HasPrefix(c.Command, "@browser:") || c.Browser.valid())
 }
 
 type WorkerResult struct {

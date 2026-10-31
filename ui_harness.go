@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var paletteCommands = []string{"/acceptance", "/agents", "/attach ", "/browser", "/check", "/commands", "/config", "/connect", "/context", "/debug ", "/detach ", "/diff", "/discussion", "/docs ", "/doctor", "/events", "/export", "/extensions", "/figureout ", "/help", "/history", "/hooks", "/init", "/inputs", "/login", "/logs", "/mcp", "/memory", "/model ", "/models", "/next", "/open ", "/plan ", "/prompts", "/queue", "/queue add ", "/queue archives", "/queue prune", "/quit", "/remember ", "/report", "/resume", "/review ", "/routing", "/skills", "/status", "/steer ", "/steering", "/stop", "/tasks", "/team", "/test ", "/workflows"}
+var paletteCommands = []string{"/acceptance", "/agents", "/attach ", "/browser", "/browser evidence", "/check", "/commands", "/config", "/connect", "/context", "/debug ", "/detach ", "/diff", "/discussion", "/docs ", "/doctor", "/events", "/export", "/extensions", "/figureout ", "/help", "/history", "/hooks", "/init", "/inputs", "/login", "/logs", "/mcp", "/memory", "/model ", "/models", "/next", "/open ", "/plan ", "/prompts", "/queue", "/queue add ", "/queue archives", "/queue prune", "/quit", "/remember ", "/report", "/resume", "/review ", "/routing", "/skills", "/status", "/steer ", "/steering", "/stop", "/tasks", "/team", "/test ", "/workflows"}
 
 func (m appModel) paletteMatches() []string {
 	var out []string

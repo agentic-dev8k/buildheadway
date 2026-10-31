@@ -168,6 +168,12 @@ func VerifyBrowserPlan(ctx context.Context, paths Paths, repo string, c ProjectC
 		r.Results[0].SourceChanged = true
 		e = errors.Join(e, errHookChangedFiles)
 	}
+	if updated, _, evidenceErr := auditBrowserEvidence(ctx, repo, dir, r.Results); evidenceErr != nil {
+		if updated != nil {
+			r.Results = updated
+		}
+		e = errors.Join(e, evidenceErr)
+	}
 	r.Status = "passed"
 	if e != nil || !r.Results[0].Passed() {
 		r.Status = "failed"
@@ -188,6 +194,9 @@ func runBrowserCommand(paths Paths, args []string) int {
 	action := "status"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		action, args = args[0], args[1:]
+	}
+	if action == "evidence" {
+		return runBrowserEvidenceCommand(args)
 	}
 	f := flag.NewFlagSet("buildheadway browser "+action, flag.ContinueOnError)
 	repo := f.String("project", ".", "Project folder")
@@ -281,6 +290,6 @@ func runBrowserCommand(paths Paths, args []string) int {
 		r, e := VerifyBrowserPlan(ctx, paths, project, c, p, action == "check")
 		return finish(r, FormatVerification(r.VerificationReport)+"\nReport: "+r.ReportPath, e)
 	default:
-		return fail(errors.New("browser actions: status, setup, enable, disable, check, verify, add-check, remove-check"))
+		return fail(errors.New("browser actions: status, setup, enable, disable, check, verify, evidence, add-check, remove-check"))
 	}
 }

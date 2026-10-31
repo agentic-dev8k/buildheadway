@@ -160,6 +160,12 @@ func CheckProject(ctx context.Context, paths Paths, repo string, emit Emit) (Ver
 		}
 		emit(Event{Kind: "status", Text: "Files changed during verification; running all checks again"})
 	}
+	if updated, _, evidenceErr := auditBrowserEvidence(ctx, repo, dir, report.Results); evidenceErr != nil {
+		if updated != nil {
+			report.Results = updated
+		}
+		err = errors.Join(err, evidenceErr)
+	}
 	report.Status = "passed"
 	if len(report.Results) == 0 || !hooksPassed(config, report.Hooks) {
 		report.Status = "failed"
@@ -171,6 +177,9 @@ func CheckProject(ctx context.Context, paths Paths, repo string, emit Emit) (Ver
 	}
 	if err != nil {
 		report.Status, report.Error = "interrupted", err.Error()
+		if errors.Is(err, errBrowserEvidence) {
+			report.Status = "failed"
+		}
 	}
 	report.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 	if saveErr := save(); saveErr != nil {
@@ -187,6 +196,7 @@ func FormatVerification(report VerificationReport) string {
 	for _, result := range report.Results {
 		fmt.Fprintf(&out, "exit %d · %s\n", result.ExitCode, result.Command)
 		fmt.Fprint(&out, sourceChangeNotice(result.SourceChanged))
+		fmt.Fprint(&out, evidenceIntegrityNotice(result.EvidenceError))
 		fmt.Fprint(&out, executionNotice(result.ExecutionEvidence))
 		fmt.Fprint(&out, logEvidence(result.Log, result.OutputTruncated || result.ExitCode != 0 && len(result.Output) > 1600))
 		if result.ExitCode != 0 {
@@ -250,7 +260,7 @@ func MarkdownReport(state State) string {
 	}
 	out.WriteString("\n## Verification\n\n")
 	for _, check := range state.CheckResults {
-		out.WriteString(fenced(fmt.Sprintf("%s\nExit code: %d\n%s%s%s%s", check.Command, check.ExitCode, executionNotice(check.ExecutionEvidence), sourceChangeNotice(check.SourceChanged), logEvidence(check.Log, check.OutputTruncated), check.Output)) + "\n")
+		out.WriteString(fenced(fmt.Sprintf("%s\nExit code: %d\n%s%s%s%s", check.Command, check.ExitCode, executionNotice(check.ExecutionEvidence), sourceChangeNotice(check.SourceChanged)+evidenceIntegrityNotice(check.EvidenceError), logEvidence(check.Log, check.OutputTruncated), check.Output)) + "\n")
 	}
 	if len(state.HookResults) > 0 {
 		out.WriteString("\n## Verification hooks\n\n")
@@ -270,7 +280,7 @@ func MarkdownReport(state State) string {
 	return out.String()
 }
 func ExportRun(repo, id, destination string, asJSON, overwrite bool) (string, error) {
-	state, _, err := LoadRun(repo, id)
+	state, _, err := loadRunWithEvidence(repo, id)
 	if err != nil {
 		return "", err
 	}

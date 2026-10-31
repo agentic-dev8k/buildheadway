@@ -43,6 +43,7 @@ type Runner struct {
 	MaxRuntime          time.Duration
 	PlanOnly            bool
 	lockHeld            bool
+	evidenceRechecks    int
 	lastCheckpoint      time.Time
 	resumeID            string
 	Invoke              func(context.Context, Connection, string, string, bool, string) (string, error)
@@ -163,6 +164,7 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 		return errors.Join(err, r.checkpoint())
 	}
 	defer stopControl()
+	r.evidenceRechecks = 0
 	r.State.Status = "running"
 	r.State.Error = ""
 	r.State.Summary = ""
@@ -303,9 +305,19 @@ func (r *Runner) runUntilPause(ctx context.Context) error {
 			r.State.HookRechecks = 0
 			r.State.Phase = "reviewing"
 		case "reviewing":
+			if retry, err := r.recheckBrowserEvidence(ctx); err != nil {
+				return err
+			} else if retry {
+				continue
+			}
 			answer, err := r.askPlanner(ctx, true)
 			if err != nil {
 				return err
+			}
+			if retry, err := r.recheckBrowserEvidence(ctx); err != nil {
+				return err
+			} else if retry {
+				continue
 			}
 			if answer.Done && CompletionAllowed(r.State, answer) {
 				snapshot, err := WorkspaceSnapshot(ctx, r.Repo)
