@@ -30,6 +30,8 @@ def decision(summary,done=False,tasks=None):
 if 'INTERNAL TEAM CONSULTATION' in prompt:
  result=decision('TERMINAL_ADVICE: preserve numeric decimals; implement a + b, then run npm test.')
 elif prompt.startswith('You are an implementation worker.'):
+ assert 'WORK ORDER' in prompt and 'required_checks' in prompt and 'verification_shell' in prompt
+ assert 'Changed' in prompt and 'Verification' in prompt and 'Remaining' in prompt
  if os.environ.get('BUILDHEADWAY_TEST_EXTENSIONS') and not (repo/'.forge'/'worker-waiting').exists():
   (repo/'.forge'/'worker-waiting').write_text('ready')
   deadline=time.monotonic()+30
@@ -138,6 +140,22 @@ def run(binary, root, extensions=False):
         wait_for(lambda:b'Free-model routing' in transcript and b'usable responses' in transcript,'routing health display')
         send('/logs')
         wait_for(lambda:b'Read one with buildheadway logs' in transcript,'saved logs display')
+        send('/inputs')
+        wait_for(lambda:b'Saved agent inputs' in transcript,'saved inputs display')
+        run_dir=project/'.forge'/'runs'/saved['run_id']
+        checkpoint_before=(run_dir/'state.json').read_bytes()
+        inputs=json.loads(subprocess.check_output([str(binary),'inputs','--json'],cwd=project,env=env))
+        assert inputs['files'], 'Actual dispatched calls must save their inputs'
+        worker_prompts=[]
+        for item in inputs['files']:
+            actual=(run_dir/item['name']).read_text()
+            inspected=json.loads(subprocess.check_output([str(binary),'inputs','--json','--offset','0','--bytes','1048576',item['name']],cwd=project,env=env))
+            assert inspected['output']==actual
+            if actual.startswith('You are an implementation worker.'):
+                worker_prompts.append(actual)
+        assert worker_prompts and all('WORK ORDER' in p and 'required_checks' in p for p in worker_prompts)
+        assert any('TERMINAL_ADVICE' in p and 'CONTINUE THE SAME ASSIGNMENT' in p for p in worker_prompts)
+        assert (run_dir/'state.json').read_bytes()==checkpoint_before
         send('/discussion')
         wait_for(lambda:b'TERMINAL_ADVICE' in transcript,'conversation display')
         send('/export')

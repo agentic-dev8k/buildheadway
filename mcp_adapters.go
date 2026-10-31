@@ -62,7 +62,12 @@ func (r *Runner) prepareMCP(ctx context.Context, connection Connection, planner,
 		return nil, nil, mcpSetupError{"configured MCP servers require a full-access Codex, Claude or OpenCode senior; disable them or choose a supported senior"}
 	}
 	for name, server := range active {
-		if err := mcpCredentials(name, server); err != nil {
+		resolved, err := resolveBrowserServer(r.Paths, server, filepath.Join(r.Dir, "browser-agent"), true)
+		if err != nil {
+			return nil, nil, err
+		}
+		active[name] = resolved
+		if err := mcpCredentials(name, resolved); err != nil {
 			return nil, nil, mcpSetupError{err.Error()}
 		}
 	}

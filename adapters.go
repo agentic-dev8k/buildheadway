@@ -25,7 +25,7 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 	if err != nil {
 		return helpCacheEntry{}, err
 	}
-	key := executable + info.ModTime().String() + itoa(int(info.Size()))
+	key := connection.Backend + "\x00" + executable + info.ModTime().String() + itoa(int(info.Size()))
 	if cached, ok := helpCache.Load(key); ok {
 		return cached.(helpCacheEntry), nil
 	}

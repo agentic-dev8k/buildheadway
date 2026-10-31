@@ -108,6 +108,7 @@ def build(args):
         destination = stage / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / relative, destination)
+    preview_paths={Path("docs/assets")/n for n in ("terminal-palette.png","terminal-conversation.png")}
     source = stage / "source"
     source.mkdir()
     for path in root.rglob("*"):
@@ -116,7 +117,7 @@ def build(args):
         relative = path.relative_to(root)
         if any(part in ("dist", "__pycache__", ".git", ".forge", "node_modules") for part in relative.parts):
             continue
-        if path.suffix not in (".go", ".mod", ".sum", ".py", ".md", ".yml", ".sh", ".ps1", ".cjs", ".json") and path.name not in ("LICENSE", ".gitignore") and relative not in brand_paths:
+        if path.suffix not in (".go", ".mod", ".sum", ".py", ".md", ".yml", ".sh", ".ps1", ".cjs", ".json") and path.name not in ("LICENSE", ".gitignore") and relative not in brand_paths and relative not in preview_paths:
             continue
         destination = source / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -242,7 +243,7 @@ def build(args):
     with zipfile.ZipFile(temporary_archive) as bundle:
         if bundle.testzip() is not None:
             raise RuntimeError("Release ZIP failed its integrity check")
-        for relative in brand_paths:
+        for relative in brand_paths | preview_paths:
             expected = (root / relative).read_bytes()
             for prefix in (Path("BuildHeadway"), Path("BuildHeadway/source")):
                 if bundle.read((prefix / relative).as_posix()) != expected:

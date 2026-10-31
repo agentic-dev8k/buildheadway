@@ -52,12 +52,21 @@ func ReadLogsAt(repo, id string, lastCheck bool, name string, limit int, offset 
 }
 
 func readLogRange(repo, id string, lastCheck bool, name string, limit int, offset int64) (LogReport, error) {
+	return readSavedRange(repo, id, lastCheck, name, limit, offset, false)
+}
+func readSavedRange(repo, id string, lastCheck bool, name string, limit int, offset int64, inputs bool) (LogReport, error) {
+	validName := validLogName
+	suffix := ".log"
+	if inputs {
+		validName = validInputName
+		suffix = ".prompt.txt"
+	}
 	report := LogReport{}
 	if limit < 1 || limit > maxLogRead {
 		return report, errors.New("log bytes must be between 1 and 1048576")
 	}
-	if name != "" && !validLogName(name) {
-		return report, errors.New("choose a .log filename from buildheadway logs; paths are not accepted")
+	if name != "" && !validName(name) {
+		return report, fmt.Errorf("choose a %s filename from the saved listing; paths are not accepted", suffix)
 	}
 	root, err := os.OpenRoot(repo)
 	if err != nil {
@@ -106,7 +115,7 @@ func readLogRange(repo, id string, lastCheck bool, name string, limit int, offse
 		for {
 			entries, err := directory.ReadDir(128)
 			for _, entry := range entries {
-				if !validLogName(entry.Name()) || !entry.Type().IsRegular() {
+				if !validName(entry.Name()) || !entry.Type().IsRegular() {
 					continue
 				}
 				info, statErr := entry.Info()

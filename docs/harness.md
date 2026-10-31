@@ -1,5 +1,7 @@
 # Autonomous coding harness
 
+[Browser acceptance checks](browser.md) execute actions and positive assertions with screenshot evidence under the existing source snapshots, coverage and senior review. Tool availability or a screenshot alone does not establish acceptance.
+
 Give the app a goal. Senior agents plan and critique, verified free workers implement, the harness executes verification, and seniors review the actual result. Goals continue through repairs until completion, user interruption, configured budgets, or a real provider/access blocker.
 
 ## Free-model recovery
@@ -51,7 +53,7 @@ The harness runs these commands itself. A worker's statement that tests passed i
 
 Use `buildheadway acceptance`, `buildheadway acceptance --json`, or `/acceptance` to inspect each requirement. States are `unmapped`, `pending`, `failed`, `unverified`, and `passed`. Inspection compares the current source snapshot with the tested one; edits invalidate the displayed passing status. JSON includes actual check exit codes and bounded output excerpts. Full logs and reports remain in the saved run.
 
-Completion requires every retained requirement to pass, every required and suggested check to have executed and passed, verification hooks to pass, and current source to match the checked snapshot. Figureout additionally requires unanimous senior review. New checks requested at review return to verification automatically.
+Completion requires every retained requirement to pass, every required and suggested check to have executed and passed, verification hooks to pass, and current source to match the checked snapshot. Figureout additionally requires unanimous senior review. Required browser screenshots must also retain their recorded hashes, sizes and decoded dimensions before and after review. Changed evidence triggers new checks and fresh approval; three invalidated rounds pause without bypassing existing budgets or blockers. Use `buildheadway browser evidence` to inspect saved image integrity; see [browser evidence](browser.md#evidence-and-limits). New checks requested at review return to verification automatically.
 
 Checks and acceptance mappings accumulate across batches and council members; a synthesis step cannot silently omit another senior's coverage request. An unavailable suggested command may be replaced using the existing explicit replacement protocol, and its acceptance mappings follow the replacement. A required check cannot be replaced by the planner.
 
@@ -83,6 +85,8 @@ These extra fingerprints add file-reading work proportional to the project size 
 Generated and dependency directories such as `node_modules`, `dist`, `.git` and `.buildheadway` are excluded from source fingerprints. Checks run in the actual project, and symlink destinations are not traversed by fingerprinting. This is a consistency check for ordinary concurrent edits, not an isolation boundary against a malicious process.
 
 ## Shared instructions and recovery
+
+The [automatic instructions guide](prompts.md) describes the stage-specific planning, work orders, consultations, repairs and review prompts. Workers receive the current goal/steering, task, host shell and required verification context. Handoff reports distinguish changes, executed checks and remaining work. Reports remain evidence to assess; the execution and approval gates below still decide completion.
 
 All planners, reviewers and workers receive root `AGENTS.md`, `CLAUDE.md` and `BUILDHEADWAY.md` guidance, plus configured context files and saved project notes. Duplicate files are included once. Existing path containment, file type and size checks apply. Root guidance is refreshed on startup/resume; nested instructions remain available for the attached agent to inspect in its task's scope.
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -50,6 +49,13 @@ type modelsMsg struct {
 type tickMsg time.Time
 type choice struct{ Backend, Label, Hint string }
 type appModel struct {
+	paletteOpen      bool
+	paletteQuery     string
+	paletteCursor    int
+	savedDraft       string
+	hasSavedDraft    bool
+	following        bool
+	unread           int
 	paths            Paths
 	repo             string
 	settings         Settings
@@ -94,7 +100,7 @@ func newApp(paths Paths, repo, initial string, demo, chooseProject bool) appMode
 	spin := spinner.New()
 	spin.Spinner = spinner.Dot
 	spin.Style = accent
-	m := appModel{
+	m := appModel{following: true,
 		paths: paths, repo: repo, initial: initial, demo: demo, editor: editor, viewport: viewport.New(80, 15),
 		spinner: spin, events: make(chan Event, 256), mode: "scanning", stage: "Scanning this computer",
 		width: 90, height: 30,
@@ -140,6 +146,13 @@ func (m *appModel) add(role, text string) {
 	if text == "" {
 		return
 	}
+	if !m.following {
+		m.unread++
+		if len(m.entries) == 400 {
+			removed := lipgloss.Height(lipgloss.NewStyle().Width(max(1, m.viewport.Width)).Render(m.entries[0].Role + "\n" + m.entries[0].Text + "\n\n"))
+			m.viewport.SetYOffset(max(0, m.viewport.YOffset-removed))
+		}
+	}
 	m.entries = append(m.entries, chatEntry{role, text})
 	if len(m.entries) > 400 {
 		m.entries = m.entries[len(m.entries)-400:]
@@ -148,7 +161,7 @@ func (m *appModel) add(role, text string) {
 }
 func (m *appModel) refresh() {
 	var content strings.Builder
-	width := max(20, m.width-6)
+	width := max(1, m.viewport.Width)
 	for _, entry := range m.entries {
 		style := muted
 		if entry.Role == "BuildHeadway" || entry.Role == "You" {
@@ -158,7 +171,9 @@ func (m *appModel) refresh() {
 		content.WriteString(lipgloss.NewStyle().Width(width).Render(entry.Text) + "\n\n")
 	}
 	m.viewport.SetContent(content.String())
-	m.viewport.GotoBottom()
+	if m.following {
+		m.viewport.GotoBottom()
+	}
 }
 func (m *appModel) connections() {
 	m.mode = "connect"
@@ -385,6 +400,10 @@ func (m *appModel) loginTo(target Connection, settings Settings) tea.Cmd {
 	return tea.ExecProcess(cmd, func(err error) tea.Msg { return authMsg{settings, target, err} })
 }
 func (m *appModel) handle(text string) tea.Cmd {
+	if strings.TrimSpace(text) == "/commands" {
+		m.openPalette()
+		return nil
+	}
 	text = strings.TrimSpace(text)
 	if m.mode == "project" {
 		if text == "" {
@@ -438,7 +457,7 @@ func (m *appModel) handle(text string) tea.Cmd {
 		}
 		return nil
 	case text == "/help":
-		m.add("Help", "Type a message to start a goal.\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions · customization sources and starter commands\n/mcp · configured external tool servers\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
+		m.add("Help", "Type a message to start a goal.\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions · customization sources and starter commands\n/mcp · configured external tool servers\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/commands · find built-in commands\n/inputs [PROMPT_NAME] · inspect actual saved agent prompts\n/browser · browser runtime status\n/browser evidence · inspect saved screenshot integrity\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
 		return nil
 	case text == "/routing" || text == "/acceptance" || text == "/status" || text == "/tasks" || text == "/history" || text == "/events":
 		kind, repo := strings.TrimPrefix(text, "/"), m.repo
@@ -539,12 +558,18 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.add(msg.Kind, msg.Text)
 		}
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.editor.SetWidth(max(15, msg.Width-10))
-		m.viewport.Width = max(15, msg.Width-6)
-		m.viewport.Height = max(3, msg.Height-14)
-		m.refresh()
+		m.width, m.height = msg.Width, msg.Height
+		m.sizeUI()
+	case tea.MouseMsg:
+		if !m.paletteOpen {
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			m.following = m.viewport.AtBottom()
+			if m.following {
+				m.unread = 0
+			}
+			commands = append(commands, cmd)
+		}
 	case scanMsg:
 		m.inventory = msg.Inventory
 		if m.busy {
@@ -721,6 +746,9 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tea.KeyMsg:
+		if handled, cmd := m.uiKey(msg); handled {
+			return m, cmd
+		}
 		switch msg.String() {
 		case "ctrl+c":
 			if m.busy {
@@ -764,6 +792,9 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				text := m.editor.Value()
 				m.editor.Reset()
 				commands = append(commands, m.handle(text))
+				if m.hasSavedDraft && !m.paletteOpen {
+					m.restoreDraft()
+				}
 			}
 		default:
 			m.editor, _ = m.editor.Update(msg)
@@ -779,56 +810,8 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(commands...)
 }
-func (m appModel) View() string {
-	width := max(30, m.width-4)
-	header := accent.Render("BUILDHEADWAY") + "  " + muted.Render(Version+"  "+runtime.GOOS+" / "+runtime.GOARCH)
-	project := muted.Render(m.repo)
-	connection := "Choose your planner"
-	if m.connected {
-		connection = m.settings.Planner.Backend + " planner · free workers"
-	}
-	if m.demo {
-		connection = "Offline demo · simulated agents"
-	}
-	body := m.viewport.View()
-	if m.mode == "connect" || m.mode == "models" {
-		var list strings.Builder
-		list.WriteString(accent.Render("Connect your coding team") + "\n\n")
-		if m.mode == "connect" {
-			for index, item := range m.choices {
-				cursor := "  "
-				if index == m.cursor {
-					cursor = accent.Render("› ")
-				}
-				list.WriteString(cursor + itoa(index+1) + ". " + item.Label + "  " + muted.Render(item.Hint) + "\n")
-			}
-			list.WriteString("\n" + muted.Render("Installed tools are reused. Missing tools are installed privately.") + "\n")
-		} else {
-			names := append([]string{"Automatic free-model selection"}, m.workerModels...)
-			for index, name := range names {
-				cursor := "  "
-				if index == m.cursor {
-					cursor = accent.Render("› ")
-				}
-				list.WriteString(cursor + name + "\n")
-			}
-		}
-		body = lipgloss.NewStyle().Height(max(5, m.height-14)).Width(width).Render(list.String())
-	}
-	status := muted.Render("● " + m.stage)
-	if m.busy {
-		status = m.spinner.View() + " " + m.stage
-	}
-	if m.progress.RunID != "" {
-		status += muted.Render(" · cycle " + itoa(m.progress.Cycle) + " · tasks " + itoa(m.progress.Finished) + "/" + itoa(m.progress.Total))
-	}
-	composer := panel.Width(max(20, m.width-8)).Render(m.editor.View())
-	footer := muted.Render("Enter send   Alt+Enter newline   Ctrl+C pause   /help")
-	if m.mode == "connect" || m.mode == "models" {
-		footer = muted.Render("↑/↓ choose   Enter select   /agents inspect installations   /quit")
-	}
-	return lipgloss.NewStyle().Padding(1, 2).Render(header + "\n" + project + "\n" + muted.Render(connection) + "\n\n" + body + "\n" + status + "\n" + composer + "\n" + footer)
-}
+func (m appModel) View() string { return m.harnessView() }
+
 func RunUI(paths Paths, repo, initial string, demo, chooseProject bool) error {
 	model := newApp(paths, repo, initial, demo, chooseProject)
 	result, err := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()

@@ -14,6 +14,8 @@ import (
 
 // Credentials are environment-variable names, never expanded checkpoint values.
 type MCPServer struct {
+	Builtin        string   `json:"builtin,omitempty"`
+	BuiltinVersion string   `json:"builtin_version,omitempty"`
 	Command        string   `json:"command,omitempty"`
 	Args           []string `json:"args,omitempty"`
 	URL            string   `json:"url,omitempty"`
@@ -38,6 +40,7 @@ func validateMCPServers(servers map[string]MCPServer) error {
 		return errors.New("configure at most 16 MCP servers")
 	}
 	identities := map[string]bool{}
+	builtins := 0
 	for name, server := range servers {
 		identity := strings.ReplaceAll(name, "-", "_")
 		if !mcpName.MatchString(name) || identities[identity] {
@@ -45,6 +48,19 @@ func validateMCPServers(servers map[string]MCPServer) error {
 		}
 		identities[identity] = true
 		fail := func(reason string) error { return fmt.Errorf("MCP server %s: %s", name, reason) }
+		if server.Builtin != "" {
+			builtins++
+			if builtins > 1 {
+				return fail("configure only one built-in browser")
+			}
+			if server.Builtin != "browser" || server.BuiltinVersion != browserProvider || server.Command != "" || server.URL != "" || len(server.Args) > 0 || len(server.Env) > 0 || server.BearerTokenEnv != "" || server.TimeoutSeconds < 0 || server.TimeoutSeconds > 300 {
+				return fail("invalid pinned built-in browser profile")
+			}
+			continue
+		}
+		if server.BuiltinVersion != "" {
+			return fail("builtin_version requires a builtin")
+		}
 		if (server.Command == "") == (server.URL == "") {
 			return fail("set exactly one executable command or HTTP URL")
 		}
@@ -103,6 +119,9 @@ func FormatMCPServers(servers map[string]MCPServer) string {
 		state, transport := "configured", "stdio"
 		if s.Disabled {
 			state = "disabled"
+		}
+		if s.Builtin != "" {
+			transport = "builtin/" + s.Builtin + "@" + s.BuiltinVersion
 		}
 		if s.URL != "" {
 			transport = "http"

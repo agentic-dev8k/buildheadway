@@ -166,6 +166,68 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.throws(() => taskRead(['status', '--task', '1:0', runID]), error => error.status !== 0);
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), taskBytes);
 
+  const inputName = '120000-worker.prompt.txt';
+  const inputText = 'EXACT GOAL: preserve saved evidence\nChanged / Verification / Remaining\n';
+  fs.writeFileSync(path.join(runDir, inputName), inputText, {mode: 0o600});
+  const beforeInputs = fs.readFileSync(path.join(runDir, 'state.json'));
+  assert.equal(JSON.parse(taskRead(['inputs', '--json'])).files[0].name, inputName);
+  const inputPage = JSON.parse(taskRead(['inputs', '--json', '--offset', '0', '--bytes', '11', inputName]));
+  assert.equal(inputPage.output, inputText.slice(0, 11));
+  assert.equal(inputPage.next_offset, 11);
+  assert.equal(inputPage.more, true);
+  assert.equal(JSON.parse(taskRead(['inputs', '--json', '--offset', '11', inputName])).output, inputText.slice(11));
+  assert.match(taskRead(['inputs', inputName]), /EXACT GOAL/);
+  for (const args of [['inputs', '--offset', '-1', inputName], ['inputs', '--offset', '0'], ['inputs', '../state.json'], ['inputs', inputName, '--json'], ['logs', inputName]]) {
+    assert.throws(() => taskRead(args), error => error.status !== 0);
+  }
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeInputs);
+  assert.equal(taskRead(['__complete', 'inputs', '--current=--of']), '--offset\n');
+  const browserStatus = JSON.parse(taskRead(['browser', 'status', '--json']));
+  assert.equal(browserStatus.ready, false);
+  assert.equal(browserStatus.enabled, false);
+  assert.equal(browserStatus.provider, '0.0.83');
+  assert.equal(taskRead(['__complete', 'browser', '--current=ver']), 'verify\n');
+
+  // Inspect actual saved PNG bytes without a browser runtime or model access.
+  const evidenceCheckpoint = fs.readFileSync(path.join(runDir, 'state.json'));
+  const image = fs.readFileSync(path.join(installed, 'assets/brand/buildheadway-icon-v1.png'));
+  const imageName = 'browser-proof.png';
+  fs.writeFileSync(path.join(runDir, imageName), image);
+  const imageCheck = {command:'@browser:flow',exit_code:0,output:'recorded assertions',browser:{
+    provider:'0.0.83',steps:2,assertions:1,screenshot:imageName,bytes:image.length,
+    sha256:require('node:crypto').createHash('sha256').update(image).digest('hex'),
+    width:image.readUInt32BE(16),height:image.readUInt32BE(20),
+  }};
+  const evidenceState = {...JSON.parse(evidenceCheckpoint),check_results:[imageCheck]};
+  fs.writeFileSync(path.join(runDir, 'state.json'), JSON.stringify(evidenceState));
+  const evidenceBytes = fs.readFileSync(path.join(runDir, 'state.json'));
+  assert.equal(JSON.parse(taskRead(['browser','evidence','--json'])).integrity, 'valid');
+  assert.match(taskRead(['browser','evidence','--run',runID]), /SHA256/);
+  assert.equal(taskRead(['__complete','browser','evidence','--current=--la']), '--last-check\n');
+  for (const kind of ['checks','browser-checks']) {
+    const reportID = 'package-browser-evidence';
+    const reportDir = path.join(project,'.forge',kind,reportID);
+    fs.mkdirSync(reportDir,{recursive:true});
+    fs.writeFileSync(path.join(reportDir,imageName),image);
+    const report = {version:1,id:reportID,status:'passed',results:[imageCheck]};
+    fs.writeFileSync(path.join(reportDir,'report.json'),JSON.stringify(report));
+    fs.writeFileSync(path.join(project,'.forge/last-check.json'),JSON.stringify(report));
+    const selector = kind === 'checks' ? ['--last-check'] : ['--report',reportID];
+    assert.equal(JSON.parse(taskRead(['browser','evidence','--json',...selector])).integrity,'valid');
+  }
+  fs.unlinkSync(path.join(runDir,imageName));
+  assert.throws(() => taskRead(['browser','evidence','--json']), error => {
+    assert.equal(JSON.parse(error.stdout).integrity, 'invalid');
+    return error.status !== 0;
+  });
+  assert.ok(JSON.parse(taskRead(['status','--json'])).check_results[0].evidence_error);
+  assert.match(taskRead(['report']), /Browser evidence invalidated/);
+  for (const args of [['browser','evidence','extra'],['browser','evidence','--run',runID,'--last-check'],['browser','evidence','--report','']]) {
+    assert.throws(() => taskRead(args), error => error.status !== 0);
+  }
+  assert.deepEqual(fs.readFileSync(path.join(runDir,'state.json')),evidenceBytes);
+  fs.writeFileSync(path.join(runDir,'state.json'),evidenceCheckpoint);
+
   assert.equal(JSON.parse(buildheadway(['events', '--json']))[0].kind, 'task-reported');
   assert.equal(JSON.parse(buildheadway(['discussion', '--json'])), null); // Older runs have no council transcript.
   fs.writeFileSync(path.join(home, 'config', 'connection.json'), JSON.stringify({
@@ -330,7 +392,10 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(JSON.parse(buildheadway(['status', '--json'])).run_id, runID, 'upgrade must retain project checkpoints');
   assert.equal(fs.readFileSync(settings, 'utf8'), 'preserve user configuration');
   const binary = path.join(installed, 'bin', binaryName());
-  fs.appendFileSync(binary, 'tampered');
+  const tampered = binary + '.tampered';
+  fs.writeFileSync(tampered, Buffer.concat([fs.readFileSync(binary), Buffer.from('tampered')]));
+  fs.chmodSync(tampered, 0o755);
+  fs.renameSync(tampered, binary);
   assert.throws(() => buildheadway(['--version']), error => error.status === 2 && /integrity verification/.test(error.stderr), 'a changed native binary must never launch');
   npm(['uninstall', '--global', pkg.name]);
   assert.ok(!fs.existsSync(path.join(bin, process.platform === 'win32' ? 'buildheadway.cmd' : 'buildheadway')));

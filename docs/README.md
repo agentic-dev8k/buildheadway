@@ -8,8 +8,11 @@
 - [Shell completions](completions.md): command, option and fixed-value suggestions for Bash, Zsh, Fish and PowerShell.
 - [Terminal usage](usage.md): connect agents, run goals, steer work, inspect evidence, and manage queues.
 - [Harness and recovery](harness.md): acceptance coverage, verified free routing, source consistency, interruption, and review.
+- [Automatic instructions](prompts.md): planning, work orders, consultations, repairs and evidence-based handoffs.
+- [Saved agent inputs](inputs.md): inspect the actual outbound prompt files, with bounded byte paging.
 - [Extensions](extensions.md): project workflows, templates, skills, and executable hooks.
 - [MCP servers](mcp.md): connect external tools, check servers, and manage agent access.
+- [Browser tools](browser.md): managed Chromium, browser MCP, required UI checks and saved screenshot integrity.
 
 ## Work on BuildHeadway
 

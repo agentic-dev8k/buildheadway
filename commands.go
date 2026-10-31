@@ -189,7 +189,7 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 		}
 		if kind == "report" {
 			var state State
-			state, _, err = LoadRun(repo, id)
+			state, _, err = loadRunWithEvidence(repo, id)
 			value = state
 			formatted = MarkdownReport(state)
 		} else {

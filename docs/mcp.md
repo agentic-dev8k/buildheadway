@@ -1,5 +1,7 @@
 # Custom MCP servers
 
+For managed browser tools and required UI checks, use `buildheadway browser enable`. See the [browser guide](browser.md).
+
 BuildHeadway connects full-access senior agents to external tools through the Model Context Protocol. Local servers use stdio; remote servers use Streamable HTTP. Configure them from the terminal without changing Go code or an attached agent's global settings.
 
 ## Add and check
