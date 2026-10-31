@@ -73,14 +73,10 @@ func runVerificationConfigured(ctx context.Context, paths Paths, repo, dir strin
 			if e != nil {
 				return e
 			}
-			env := setEnv(setEnv(setEnv(ToolEnv(paths), "CI", "1"), "BUILDHEADWAY_BROWSER_CHECK_HANDOFF", handoff), "BUILDHEADWAY_BROWSER_CHECK_NONCE", nonce)
+			env := browserCommandEnv(paths, repo, handoff, nonce)
 			result, runErr := RunProcess(ctx, argv, repo, logPath, "", env, timeout, nil)
 			result, evidence := verificationEvidence(ctx, result, runErr, started)
-			hard = readBrowserHandoff(repo, handoff, nonce)
-			if hard != nil {
-				evidence.FailureKind = "execution"
-				evidence.Error = hard.Error()
-			}
+			evidence, hard = browserProcessEvidence(repo, handoff, nonce, evidence)
 			check = CheckResult{ExecutionEvidence: evidence, Command: command, ExitCode: result.Code, Output: Tail(result.Output, 7000), Log: filepath.Base(logPath), OutputTruncated: result.OutputTruncated || len(result.Output) > 7000}
 		}
 		recordErr := record(check)
@@ -96,6 +92,9 @@ func runVerificationConfigured(ctx context.Context, paths Paths, repo, dir strin
 		text := "Passed"
 		if !check.Passed() {
 			text = "Failed (exit " + itoa(check.ExitCode) + ")"
+			if check.BrowserFailure != nil {
+				text = "Failed: nested browser verification (wrapper exit " + itoa(check.ExitCode) + ")"
+			}
 		}
 		emit(Event{Kind: "check-result", Text: text})
 	}

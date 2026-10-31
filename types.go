@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.34.0"
+const Version = "0.35.0"
 
 type Paths struct {
 	Config string `json:"config"`
@@ -189,7 +189,7 @@ type CheckResult struct {
 }
 
 func (c CheckResult) Passed() bool {
-	return c.ExitCode == 0 && c.EvidenceError == "" && !c.SourceChanged && c.FailureKind == "" && c.Error == "" && (!strings.HasPrefix(c.Command, "@browser:") || c.Browser.valid())
+	return c.ExitCode == 0 && c.BrowserFailure == nil && c.EvidenceError == "" && !c.SourceChanged && c.FailureKind == "" && c.Error == "" && (!strings.HasPrefix(c.Command, "@browser:") || c.Browser.valid())
 }
 
 type WorkerResult struct {

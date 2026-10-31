@@ -78,6 +78,12 @@ func browserProtocolFixture() {
 				if config.Mode == "action-error" {
 					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "private-error-token"}}}, nil
 				}
+				if config.Mode == "project-output" {
+					data, _ := os.ReadFile(filepath.Join(config.Repo, "result.txt"))
+					if string(data) != "good\n" {
+						return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "simulated page assertion failed"}}}, nil
+					}
+				}
 			case "browser_take_screenshot":
 				name := p["filename"].(string)
 				_ = os.MkdirAll(filepath.Dir(name), 0700)

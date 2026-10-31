@@ -78,6 +78,16 @@ Acceptance URLs use numeric loopback HTTP(S), such as `127.0.0.1` or `[::1]`. Th
 
 Missing/corrupt runtime files, missing credential variables, unsupported adapters and MCP startup/initial navigation failures are blockers. A unique, bounded verification handoff also carries these blockers through nested shell/npm commands; a wrapper exit code cannot silently convert them into passing evidence. They stop without model fallback or dropping requirements, including a pause racing with recording. Initial navigation is treated conservatively as a blocker because browser readiness has not been established. Later action/assertion failures remain failed checks for repair. Resume reruns checks before fresh senior approval. Setup, tool listings and screenshots alone cannot authorize completion.
 
+### Failures inside scripts and hooks
+
+Browser `verify` and `check` failures propagate to an enclosing BuildHeadway verification command or executable hook even if its shell/npm wrapper catches the error and exits zero. This includes assertion failures and invalid verification invocations. Ordinary browser failures remain repairable checks; they do not trigger model fallback or turn into setup blockers.
+
+Check/hook JSON retains the wrapper's actual exit, duration, output and log alongside `browser_failure.error` and an optional project-relative `browser_failure.report`. Status, reports and agent prompts carry these details, and terminal progress identifies the nested failure explicitly. Cancellation and timeout keep their existing classifications. Resume reruns checks and obtains fresh senior approval. Successful nested reports are still separate evidence; this failure handoff does not import their screenshots into a goal's ledger.
+
+Every command and hook gets a fresh bounded handoff, and child-project reports use the enclosing project's root. Separate hard-blocker records ensure an ordinary failure cannot mask a later MCP/setup blocker, including a pause/cancellation race. Malformed or stale handoffs block verification. One ordinary failure is retained per invocation; diagnostics keep both ends within 2000 UTF-8 bytes, optional report references within 512 bytes, and encoded JSON within 4096 bytes. Escaping may require a shorter excerpt or omission of a long report reference. Older checkpoints without these fields do not acquire invented child failures.
+
+This covers BuildHeadway browser children that inherit the enclosing verification environment. Scripts that clear that environment, invoke older binaries without this support, or deliberately tamper with the records are outside this mechanism. It is failure propagation for normal terminal workflows, not an isolation boundary against an authorized full-access process.
+
 `browser status --json` and `/browser` inspect without model calls or installation. `browser disable` and generic MCP disable/remove refuse to break required plans. Remove plans explicitly with `browser remove-check NAME`; acceptance mappings and other references must also be updated deliberately. Saved goals retain their pinned settings.
 
 Browser components are installed on demand, not included in the main npm tarball. See [MCP connections](mcp.md), [harness controls](harness.md), and [installation](install.md).

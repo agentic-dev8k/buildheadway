@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.0 — 2026-10-31
+
+- Browser verification failures now reach enclosing shell/npm checks and executable hooks even when a wrapper exits zero. Repairable failures retain their own error and optional child-report reference; actual wrapper exits, duration, logs, timeout and cancellation fields are preserved.
+- Added fresh per-hook failure handoffs and an explicit parent project root, so child-project failures reach the correct controller. Hard MCP/setup blockers retain separate records and precedence over ordinary assertion failures, including cancellation races. Invalid or stale handoff data stops verification without model fallback.
+- Status, acceptance, reports, prompt evidence and terminal progress expose nested failures. A failed child cannot pass a check or hook; ordinary failures return to repair. Repeated failures retain stalled-cycle accounting even when each child creates a new report ID, and a real repair counts as progress.
+- Bounded diagnostics preserve both ends within 2000 UTF-8 bytes, report references within 512 bytes and complete JSON handoffs within 4096 encoded bytes. Checkpoint remains v12 with optional additive metadata. Successful nested reports are not silently imported as passing screenshot evidence.
+- Added real subprocess/protocol, installed-CLI, hook, cancellation, budget-pause/resume, malformed-data and blocker-priority regressions. No new authenticated model inference or live Chromium action is claimed.
+
 ## 0.34.0 — 2026-10-31
 
 - Browser acceptance screenshots are revalidated before and after senior review against their saved SHA256, size and decoded dimensions. Changed, deleted or malformed images invalidate acceptance and require executed checks and fresh approval. Three invalidated rounds pause for diagnosis; configured budgets and provider blockers retain precedence.

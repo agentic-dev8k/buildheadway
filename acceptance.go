@@ -92,7 +92,7 @@ func AcceptanceResults(state State, answer Decision) []AcceptanceResult {
 						evidence.OutputTruncated = result.OutputTruncated || len(result.Output) > 1200
 						evidence.Output = Tail(result.Output, 1200)
 						row.Evidence = append(row.Evidence, evidence)
-						if result.ExitCode != 0 || result.FailureKind != "" || result.Error != "" {
+						if result.ExitCode != 0 || result.FailureKind != "" || result.Error != "" || result.BrowserFailure != nil {
 							row.Status = "failed"
 						} else if (result.SourceChanged || result.EvidenceError != "" || !result.Passed()) && row.Status != "failed" {
 							row.Status = "unverified"

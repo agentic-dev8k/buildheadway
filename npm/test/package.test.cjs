@@ -188,6 +188,36 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(browserStatus.provider, '0.0.83');
   assert.equal(taskRead(['__complete', 'browser', '--current=ver']), 'verify\n');
 
+  // A real installed child CLI rejects the plan; a successful Node wrapper
+  // must not hide that failure in either a check or an executable hook.
+  for (const scope of ['check','hook']) {
+    const failureProject = path.join(root,'nested browser failure '+scope);
+    fs.mkdirSync(failureProject,{recursive:true});
+    fs.writeFileSync(path.join(failureProject,'app.txt'),'good\n');
+    fs.writeFileSync(path.join(failureProject,'check.cjs'),"require('node:assert/strict').equal(require('node:fs').readFileSync('app.txt','utf8'),'good\\n');");
+    fs.writeFileSync(path.join(failureProject,'invalid-plan.json'),JSON.stringify({name:'empty-flow',url:'http://127.0.0.1:19437',steps:[]}));
+    const childArgs = [process.execPath,path.join(installed,'npm/buildheadway.cjs'),'browser','verify','--file','invalid-plan.json'];
+    const wrapper = path.join(failureProject,'wrapper.cjs');
+    fs.writeFileSync(wrapper,'const a='+JSON.stringify(childArgs)+";const r=require('child_process').spawnSync(a[0],a.slice(1),{stdio:'pipe'});if(r.error)throw r.error;process.exit(0);");
+    const wrapped = '"'+process.execPath+'" "'+wrapper+'"';
+    const config = {version:1,checks:scope==='check'?[wrapped]:['node check.cjs'],hooks:scope==='hook'?[{name:'browser-gate',event:'after_check',command:wrapped}]:[]};
+    fs.writeFileSync(path.join(failureProject,'.buildheadway.json'),JSON.stringify(config));
+    assert.throws(()=>execFileSync(process.execPath,[path.join(installed,'npm/buildheadway.cjs'),'check','--json'],{...options,cwd:failureProject}),error=>{
+      const report=JSON.parse(error.stdout);
+      assert.equal(report.status,'failed');
+      const actual=scope==='check'?report.results[0]:report.hooks[0];
+      assert.equal(actual.exit_code,0,'retain the actual successful wrapper exit');
+      assert.ok(actual.browser_failure.error);
+      assert.equal(actual.failure_kind,undefined,'a child failure must not invent a parent execution error');
+      assert.ok(actual.duration_ms>0);
+      assert.match(actual.log,/\.log$/);
+      return error.status!==0;
+    });
+    const saved=JSON.parse(fs.readFileSync(path.join(failureProject,'.forge/last-check.json'),'utf8'));
+    assert.ok((scope==='check'?saved.results[0]:saved.hooks[0]).browser_failure.error);
+    assert.equal(fs.existsSync(path.join(failureProject,'.forge/latest.json')),false,'standalone verification must not start a model goal');
+  }
+
   // Inspect actual saved PNG bytes without a browser runtime or model access.
   const evidenceCheckpoint = fs.readFileSync(path.join(runDir, 'state.json'));
   const image = fs.readFileSync(path.join(installed, 'assets/brand/buildheadway-icon-v1.png'));

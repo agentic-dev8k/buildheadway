@@ -190,7 +190,7 @@ func VerifyBrowserPlan(ctx context.Context, paths Paths, repo string, c ProjectC
 	}
 	return r, e
 }
-func runBrowserCommand(paths Paths, args []string) int {
+func runBrowserCommand(paths Paths, args []string) (code int) {
 	action := "status"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		action, args = args[0], args[1:]
@@ -198,6 +198,12 @@ func runBrowserCommand(paths Paths, args []string) int {
 	if action == "evidence" {
 		return runBrowserEvidenceCommand(args)
 	}
+	failureProject, failureHandled := ".", false
+	defer func() {
+		if code != 0 && !failureHandled && (action == "verify" || action == "check") {
+			saveBrowserFailure(failureProject, errors.New("browser "+action+" command failed; inspect its command log"), "")
+		}
+	}()
 	f := flag.NewFlagSet("buildheadway browser "+action, flag.ContinueOnError)
 	repo := f.String("project", ".", "Project folder")
 	asJSON := f.Bool("json", false, "Print JSON")
@@ -213,11 +219,20 @@ func runBrowserCommand(paths Paths, args []string) int {
 	if e != nil {
 		return fail(e)
 	}
+	failureProject = project
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	finish := func(v any, text string, e error) int {
 		if e != nil {
+			failureHandled = true
 			saveBrowserBlocker(project, e)
+			if action == "verify" || action == "check" {
+				report := ""
+				if value, ok := v.(BrowserVerifyReport); ok {
+					report = value.ReportPath
+				}
+				saveBrowserFailure(project, e, report)
+			}
 		}
 		if v != nil {
 			if err := outputValue(v, text, *asJSON); err != nil {

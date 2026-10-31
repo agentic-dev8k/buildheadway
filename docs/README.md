@@ -12,7 +12,7 @@
 - [Saved agent inputs](inputs.md): inspect the actual outbound prompt files, with bounded byte paging.
 - [Extensions](extensions.md): project workflows, templates, skills, and executable hooks.
 - [MCP servers](mcp.md): connect external tools, check servers, and manage agent access.
-- [Browser tools](browser.md): managed Chromium, browser MCP, required UI checks and saved screenshot integrity.
+- [Browser tools](browser.md): managed Chromium, browser MCP, required UI checks, script/hook failure propagation and saved screenshot integrity.
 
 ## Work on BuildHeadway
 
