@@ -28,6 +28,10 @@ Completion and pause requests share the steering lock: a saved request prevents 
 
 The separate `.forge/runs/RUN_ID/control.json` format is version 1, limited to 4,096 bytes and restricted to regular files with a matching run identity and valid request time. Only the controller writes `state.json`; request writers update the control file atomically. Checkpoint v12 and earlier-brand run locations remain unchanged. These controls coordinate a running local controller; they do not start a background service or suspend a remote provider independently of its adapter.
 
+## Duplicate-safe task delivery (0.36)
+
+Trusted scripts can route a direction to an explicit saved run with source/event keys. Admission is deterministic and serialized with steering application/completion; identical retries return the original receipt, including after application or completion, without writing another update or invoking a model. Different payloads under the same key and conflicting checkpoint/inbox copies block. Applied keys survive an older inbox backup, and existing history/text limits still apply. Pending directions retain normal replanning, partial-work checks and fresh approval. See [Reliable task updates](task-updates.md) for CLI/JSON examples and the boundary between local intake and an always-online event service.
+
 ## Acceptance evidence
 
 Version 0.11 makes acceptance coverage an executable gate for all new and resumed goals. Each retained success criterion must have at least one meaningful check. A senior can propose the mapping in its structured decision:

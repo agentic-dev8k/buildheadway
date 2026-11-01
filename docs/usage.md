@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.35.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.36.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -75,6 +75,8 @@ buildheadway steering
 Projects can add repeatable `before_check` formatters and `after_check` validation gates in `.buildheadway.json`. Failed hooks go back to the team for repair and block completion; hooks that change source after tests trigger fresh verification. `buildheadway check` uses the same gates without calling a model.
 
 See [Extensions guide](extensions.md) for template and skill folders, argument substitution, hook configuration, platform settings, and examples. No extra extension package is required for these features.
+
+For retrying trusted scripts, `steer --run ID --source NAME --event ID --json TEXT` returns a durable delivery receipt and coalesces identical events. [Reliable task updates](task-updates.md) covers explicit task addressing and structured waiting/applied status.
 
 ## Agent discovery
 
