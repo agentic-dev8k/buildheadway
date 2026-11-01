@@ -114,8 +114,9 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 		if len(values) == 1 {
 			id = values[0]
 		}
-		formatted, err = SteeringStatus(repo, id)
-		value = map[string]string{"status": formatted}
+		var view SteeringView
+		view, err = InspectSteering(repo, id)
+		formatted, value = view.Status, view
 	case "init":
 		if len(values) > 0 {
 			return fail(errors.New("buildheadway init accepts no positional arguments"))

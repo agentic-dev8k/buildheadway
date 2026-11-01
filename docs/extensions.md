@@ -84,7 +84,7 @@ For personal resources, use `prompts/` and `skills/` under BuildHeadway's config
 | macOS | `~/Library/Application Support/BuildHeadway` |
 | Windows | `%APPDATA%\BuildHeadway` |
 
-Project resources override personal resources, which override built-ins. Duplicate prompt and skill names within the same scope produce an error. Core terminal commands take precedence over workflow shortcuts; `/workflow NAME` always selects the workflow explicitly. Project `.buildheadway-prompts` and `.buildheadway-skills` folders can be committed to source control; transient runs remain in the ignored `.buildheadway` folder.
+Project resources override personal resources, which override built-ins. Duplicate prompt and skill names within the same scope produce an error. Core terminal commands take precedence over workflow shortcuts; `/workflow NAME` always selects the workflow explicitly. Project `.buildheadway-prompts` and `.buildheadway-skills` folders can be committed to source control; transient runs remain in the ignored `.forge` folder for compatibility.
 
 ## Redirect an active team
 
@@ -92,7 +92,9 @@ Project resources override personal resources, which override built-ins. Duplica
 
 Applying a direction invalidates the old plan, pending tasks, consultations and review votes. If implementation has started, BuildHeadway checks the current files before further review. The team receives the original goal and all user updates, with later updates taking precedence. Existing required checks remain required. Updates and their application are checkpointed; concurrent senders cannot overwrite one another, and completion is serialized with message submission.
 
-Typing an ordinary new goal while busy still queues it for later. Use `/steer` to change the active goal. Completed runs reject steering; start a new goal instead. A run supports up to 64 updates, each at most 8,000 bytes, and 128 KiB of update text in total.
+Typing an ordinary new goal while busy still queues it for later. Use `/steer` to change the active goal. Completed runs reject new steering; start a new goal instead. A run supports up to 64 updates, each at most 8,000 bytes, and 128 KiB of update text in total.
+
+Trusted integrations can add `--run ID --source NAME --event EVENT_ID --json` to obtain duplicate-safe delivery receipts. Identical retries acknowledge the original update without replanning again; reusing a key with changed text fails. `buildheadway steering --json ID` shows structured waiting/applied receipts as well as the existing status text. See [Reliable task updates](task-updates.md) for stable addressing, recovery, limits and integration boundaries.
 
 ## Automate verification
 

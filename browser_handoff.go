@@ -62,11 +62,11 @@ func saveBrowserBlocker(repo string, e error) {
 	if !errors.As(e, &setup) {
 		return
 	}
-	path, nonce := os.Getenv("BUILDHEADWAY_BROWSER_CHECK_HANDOFF"), os.Getenv("BUILDHEADWAY_BROWSER_CHECK_NONCE")
-	if path == "" || nonce == "" || filepath.IsAbs(path) || filepath.Dir(path) != filepath.Join(".forge", "browser-handoffs") {
+	root, path, nonce := browserHandoffTarget(repo)
+	if root == "" {
 		return
 	}
-	r, err := os.OpenRoot(repo)
+	r, err := os.OpenRoot(root)
 	if err != nil {
 		return
 	}

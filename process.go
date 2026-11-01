@@ -29,9 +29,10 @@ func (e commandTimeoutError) Error() string {
 // ExecutionEvidence is additive checkpoint metadata. Empty failure_kind/error in
 // older checkpoints does not invent a duration or alter their recorded exit code.
 type ExecutionEvidence struct {
-	DurationMillis int64  `json:"duration_ms,omitempty"`
-	FailureKind    string `json:"failure_kind,omitempty"`
-	Error          string `json:"error,omitempty"`
+	BrowserFailure *BrowserFailureEvidence `json:"browser_failure,omitempty"`
+	DurationMillis int64                   `json:"duration_ms,omitempty"`
+	FailureKind    string                  `json:"failure_kind,omitempty"`
+	Error          string                  `json:"error,omitempty"`
 }
 
 func verificationEvidence(ctx context.Context, result ProcessResult, err error, started time.Time) (ProcessResult, ExecutionEvidence) {
@@ -56,14 +57,15 @@ func verificationEvidence(ctx context.Context, result ProcessResult, err error, 
 }
 
 func executionNotice(e ExecutionEvidence) string {
+	prefix := browserFailureNotice(e.BrowserFailure)
 	if e.FailureKind == "" {
-		return ""
+		return prefix
 	}
 	text := fmt.Sprintf("[%s; elapsed %s", e.FailureKind, time.Duration(e.DurationMillis)*time.Millisecond)
 	if e.Error != "" {
 		text += ": " + e.Error
 	}
-	return text + "]\n"
+	return prefix + text + "]\n"
 }
 
 const processOutputLimit int64 = 8 << 20

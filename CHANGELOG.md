@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.36.0 — 2026-11-01
+
+- Trusted scripts can deliver task updates with `steer --run ID --source NAME --event ID --json TEXT`. Source/event pairs are scoped to an explicit saved run, and identical concurrent retries return the original receipt without duplicating work, rewriting the inbox/checkpoint or using a model call. Changed text under an existing key is rejected.
+- Receipts expose waiting/applied status. `steering --json ID` now includes structured messages and source/event provenance while retaining its previous status string. Applied keys survive an older inbox backup; conflicting saved copies block. Existing checkpoint v12 and history/text bounds remain in force.
+- Source/event references stay with accepted directions in prompts and reports. Pending updates still invalidate stale plans/approvals and require partial-work verification; duplicates do not repeat that process. Completed goals acknowledge known retries and reject new requests.
+- Added concurrency, recovery, capacity, scoped-routing, actual CLI, installed-package and full goal-loop regressions. This is local event intake for explicitly authorized directions; it does not add a monitoring daemon, webhook, messaging connector or parallel writers to a project.
+
+## 0.35.0 — 2026-10-31
+
+- Browser verification failures now reach enclosing shell/npm checks and executable hooks even when a wrapper exits zero. Repairable failures retain their own error and optional child-report reference; actual wrapper exits, duration, logs, timeout and cancellation fields are preserved.
+- Added fresh per-hook failure handoffs and an explicit parent project root, so child-project failures reach the correct controller. Hard MCP/setup blockers retain separate records and precedence over ordinary assertion failures, including cancellation races. Invalid or stale handoff data stops verification without model fallback.
+- Status, acceptance, reports, prompt evidence and terminal progress expose nested failures. A failed child cannot pass a check or hook; ordinary failures return to repair. Repeated failures retain stalled-cycle accounting even when each child creates a new report ID, and a real repair counts as progress.
+- Bounded diagnostics preserve both ends within 2000 UTF-8 bytes, report references within 512 bytes and complete JSON handoffs within 4096 encoded bytes. Checkpoint remains v12 with optional additive metadata. Successful nested reports are not silently imported as passing screenshot evidence.
+- Added real subprocess/protocol, installed-CLI, hook, cancellation, budget-pause/resume, malformed-data and blocker-priority regressions. No new authenticated model inference or live Chromium action is claimed.
+
 ## 0.34.0 — 2026-10-31
 
 - Browser acceptance screenshots are revalidated before and after senior review against their saved SHA256, size and decoded dimensions. Changed, deleted or malformed images invalidate acceptance and require executed checks and fresh approval. Three invalidated rounds pause for diagnosis; configured budgets and provider blockers retain precedence.

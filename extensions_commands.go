@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"strings"
 )
 
@@ -42,21 +41,39 @@ func runSteerCommand(args []string) int {
 	flags := flag.NewFlagSet("buildheadway steer", flag.ContinueOnError)
 	project := flags.String("project", ".", "Project folder")
 	id := flags.String("run", "latest", "Saved run ID")
+	source := flags.String("source", "", "Stable source name for duplicate-safe delivery (requires --event and explicit --run)")
+	eventID := flags.String("event", "", "Stable source event ID; retries with the same text are acknowledged once")
+	asJSON := flags.Bool("json", false, "Print a structured delivery receipt")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
 	}
+	keyed := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "source" || f.Name == "event" {
+			keyed = true
+		}
+	})
+	if keyed && (*source == "" || *eventID == "") {
+		return fail(errors.New("event delivery requires nonempty --source and --event values"))
+	}
 	text := strings.TrimSpace(strings.Join(flags.Args(), " "))
 	if text == "" {
-		return fail(errors.New("usage: buildheadway steer [--project FOLDER] [--run ID] YOUR UPDATED DIRECTION"))
+		return fail(errors.New("usage: buildheadway steer [--project FOLDER] [--run ID] [--source NAME --event ID] [--json] YOUR UPDATED DIRECTION"))
 	}
-	msg, err := SendSteering(*project, *id, text)
+	receipt, err := DeliverSteering(*project, *id, text, *source, *eventID)
 	if err != nil {
 		return fail(err)
 	}
-	fmt.Println("Saved " + msg.ID + ". The team applies it after the current agent call, or when you resume. Use buildheadway steering to see its status.")
+	formatted := "Saved " + receipt.Message.ID + ". The team applies it after the current agent call, or when you resume. Use buildheadway steering to see its status."
+	if receipt.Duplicate {
+		formatted = "Already received " + receipt.Message.ID + " for " + receipt.RunID + " (" + receipt.Status + "). No new update was added."
+	}
+	if err := outputValue(receipt, formatted, *asJSON); err != nil {
+		return fail(err)
+	}
 	return 0
 }
 func selectWorkflows(items []Workflow, kind string) []Workflow {

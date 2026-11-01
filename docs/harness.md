@@ -28,6 +28,10 @@ Completion and pause requests share the steering lock: a saved request prevents 
 
 The separate `.forge/runs/RUN_ID/control.json` format is version 1, limited to 4,096 bytes and restricted to regular files with a matching run identity and valid request time. Only the controller writes `state.json`; request writers update the control file atomically. Checkpoint v12 and earlier-brand run locations remain unchanged. These controls coordinate a running local controller; they do not start a background service or suspend a remote provider independently of its adapter.
 
+## Duplicate-safe task delivery (0.36)
+
+Trusted scripts can route a direction to an explicit saved run with source/event keys. Admission is deterministic and serialized with steering application/completion; identical retries return the original receipt, including after application or completion, without writing another update or invoking a model. Different payloads under the same key and conflicting checkpoint/inbox copies block. Applied keys survive an older inbox backup, and existing history/text limits still apply. Pending directions retain normal replanning, partial-work checks and fresh approval. See [Reliable task updates](task-updates.md) for CLI/JSON examples and the boundary between local intake and an always-online event service.
+
 ## Acceptance evidence
 
 Version 0.11 makes acceptance coverage an executable gate for all new and resumed goals. Each retained success criterion must have at least one meaningful check. A senior can propose the mapping in its structured decision:
@@ -83,6 +87,12 @@ Invalidated command results include `source_changed: true` in JSON. Their real e
 These extra fingerprints add file-reading work proportional to the project size and number of verification commands. The boundary is each configured shell command or hook, not every command inside a compound shell expression. Edits made and completely reverted within one invocation may not be visible at its boundaries; this mechanism does not isolate processes or protect against malicious writers.
 
 Generated and dependency directories such as `node_modules`, `dist`, `.git` and `.buildheadway` are excluded from source fingerprints. Checks run in the actual project, and symlink destinations are not traversed by fingerprinting. This is a consistency check for ordinary concurrent edits, not an isolation boundary against a malicious process.
+
+## Browser failures inside scripts and hooks (0.35)
+
+A nested `buildheadway browser verify` or `browser check` failure cannot be converted into passing verification merely by returning exit zero from its wrapper. The parent check or hook retains its real process outcome and a separate `browser_failure` diagnostic with an optional child-report reference. Ordinary failures return to repair; hard MCP/setup failures keep precedence and block without fallback. Read [browser failure propagation](browser.md#failures-inside-scripts-and-hooks) for scope and bounds.
+
+The same metadata appears in saved results, status JSON, reports and agent prompts. Failed nested checks invalidate acceptance, and failed nested hooks cannot pass hook gates. Parent cancellation/timeouts retain their own execution fields. Fresh attempts cannot reuse old handoffs; repeated failed reports still count toward configured stalled-cycle limits, and actual recovery counts as progress. Resume and senior approval gates remain unchanged.
 
 ## Shared instructions and recovery
 
