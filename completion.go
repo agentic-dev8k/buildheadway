@@ -48,7 +48,7 @@ func completionTree() completionNode {
 	add("detach team", completionNode{flags: []completionFlag{f("--json", false)}})
 	add("pause init config memory remember buildheadwayt check diff report next workflows skills prompts hooks steering", completionNode{flags: project})
 	add("export", completionNode{flags: append(append([]completionFlag{}, project...), f("--output", true), f("--force", false))})
-	add("steer", completionNode{flags: []completionFlag{f("--project", true), f("--run", true)}})
+	add("steer", completionNode{flags: []completionFlag{f("--project", true), f("--run", true), f("--source", true), f("--event", true), f("--json", false)}})
 	add("inputs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--bytes", true), f("--offset", true))})
 	add("logs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--last-check", false), f("--bytes", true), f("--offset", true))})
 	add("workflow skill prompt", completionNode{flags: append(append([]completionFlag{}, project...), f("--preview", false))})

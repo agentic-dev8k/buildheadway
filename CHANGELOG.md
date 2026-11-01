@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.36.0 — 2026-11-01
+
+- Trusted scripts can deliver task updates with `steer --run ID --source NAME --event ID --json TEXT`. Source/event pairs are scoped to an explicit saved run, and identical concurrent retries return the original receipt without duplicating work, rewriting the inbox/checkpoint or using a model call. Changed text under an existing key is rejected.
+- Receipts expose waiting/applied status. `steering --json ID` now includes structured messages and source/event provenance while retaining its previous status string. Applied keys survive an older inbox backup; conflicting saved copies block. Existing checkpoint v12 and history/text bounds remain in force.
+- Source/event references stay with accepted directions in prompts and reports. Pending updates still invalidate stale plans/approvals and require partial-work verification; duplicates do not repeat that process. Completed goals acknowledge known retries and reject new requests.
+- Added concurrency, recovery, capacity, scoped-routing, actual CLI, installed-package and full goal-loop regressions. This is local event intake for explicitly authorized directions; it does not add a monitoring daemon, webhook, messaging connector or parallel writers to a project.
+
 ## 0.35.0 — 2026-10-31
 
 - Browser verification failures now reach enclosing shell/npm checks and executable hooks even when a wrapper exits zero. Repairable failures retain their own error and optional child-report reference; actual wrapper exits, duration, logs, timeout and cancellation fields are preserved.
