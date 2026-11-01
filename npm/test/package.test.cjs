@@ -142,12 +142,35 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(buildheadway(['steer', 'check-compatibility']), /Saved steer-/);
   assert.match(buildheadway(['steering']), /check-compatibility/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(runDir, 'steering.json'), 'utf8')).messages.length, 1);
+  const deliver = ['steer', '--json', '--run', runID, '--source', 'ci', '--event', 'job/123:failed', 'Inspect the failed integration test'];
+  const receipt = JSON.parse(buildheadway(deliver));
+  assert.equal(receipt.run_id, runID);
+  assert.equal(receipt.status, 'waiting');
+  assert.equal(receipt.duplicate, false);
+  assert.equal(receipt.message.source, 'ci');
+  assert.equal(receipt.message.event_id, 'job/123:failed');
+  const steeringBytes = fs.readFileSync(path.join(runDir, 'steering.json'));
+  assert.deepEqual(JSON.parse(buildheadway(deliver)), { ...receipt, duplicate: true });
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'steering.json')), steeringBytes, 'event retries must preserve the original receipt');
+  const deliveries = JSON.parse(buildheadway(['steering', '--json', runID]));
+  assert.equal(deliveries.run_id, runID);
+  assert.equal(deliveries.messages.length, 2);
+  assert.deepEqual(deliveries.messages[1], receipt);
+  assert.match(deliveries.status, /source: ci · event: job\/123:failed/);
+  for (const args of [
+    ['steer', '--source', 'ci', '--event', 'job/123:failed', 'Direction'],
+    ['steer', '--run', 'latest', '--source', 'ci', '--event', 'job/123:failed', 'Direction'],
+    ['steer', '--run', runID, '--source', '', '--event', '', 'Direction'],
+    [...deliver.slice(0, -1), 'Changed direction with an already-used key'],
+  ]) assert.throws(() => buildheadway(args), error => error.status !== 0);
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'steering.json')), steeringBytes);
   assert.equal(JSON.parse(buildheadway(['tasks', '--json']))[0].attempts, 1);
   const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
   for (const shell of ['bash', 'zsh', 'fish', 'powershell']) {
     assert.match(taskRead(['completion', shell]), /__complete/);
   }
   assert.equal(taskRead(['__complete', 'mcp', '--current=ad']), 'add\n');
+  assert.equal(taskRead(['__complete', 'steer', '--current=--ev']), '--event\n');
   assert.equal(taskRead(['__complete', 'figureout', '--access', '--current=wo']), 'workspace\n');
   assert.equal(taskRead(['__complete', 'figureout', 'a quoted goal', '--current=--max-']), '');
   assert.throws(() => taskRead(['completion', 'unknown']), error => error.status !== 0);
