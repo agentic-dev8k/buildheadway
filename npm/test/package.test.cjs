@@ -65,6 +65,7 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.ok(fs.existsSync(path.join(bin, process.platform === 'win32' ? 'buildheadway.cmd' : 'buildheadway')));
   assert.match(buildheadway(['--version']), new RegExp('BuildHeadway ' + pkg.version.replaceAll('.', '\\.')));
   const installed = path.join(prefix, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', pkg.name);
+  const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
   assert.ok(fs.existsSync(path.join(installed, 'bin', binaryName())));
   assert.match(fs.readFileSync(path.join(installed, 'README.md'), 'utf8'), /assets\/brand\/buildheadway-logo-on-white-v1\.png/);
   checkDocs(installed);
@@ -143,14 +144,23 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(buildheadway(['steering']), /check-compatibility/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(runDir, 'steering.json'), 'utf8')).messages.length, 1);
   const deliver = ['steer', '--json', '--run', runID, '--source', 'ci', '--event', 'job/123:failed', 'Inspect the failed integration test'];
-  const receipt = JSON.parse(buildheadway(deliver));
+  // Exercise the real npm command shim with a fixed, quoted Windows direction.
+  // Keep the general helper's conservative interpolation whitelist unchanged.
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(project, 'steering-delivery.cmd'), '@echo off\r\ncall buildheadway steer --json --run package-checkpoint --source ci --event job/123:failed "Inspect the failed integration test"\r\nexit /b %ERRORLEVEL%\r\n');
+  }
+  const sendDelivery = () => process.platform === 'win32'
+    ? execFileSync('cmd.exe', ['/d', '/c', 'steering-delivery.cmd'], options)
+    : buildheadway(deliver);
+  const receipt = JSON.parse(sendDelivery());
   assert.equal(receipt.run_id, runID);
   assert.equal(receipt.status, 'waiting');
   assert.equal(receipt.duplicate, false);
   assert.equal(receipt.message.source, 'ci');
   assert.equal(receipt.message.event_id, 'job/123:failed');
+  assert.equal(receipt.message.text, deliver.at(-1));
   const steeringBytes = fs.readFileSync(path.join(runDir, 'steering.json'));
-  assert.deepEqual(JSON.parse(buildheadway(deliver)), { ...receipt, duplicate: true });
+  assert.deepEqual(JSON.parse(sendDelivery()), { ...receipt, duplicate: true });
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'steering.json')), steeringBytes, 'event retries must preserve the original receipt');
   const deliveries = JSON.parse(buildheadway(['steering', '--json', runID]));
   assert.equal(deliveries.run_id, runID);
@@ -162,10 +172,9 @@ test('the real release package installs, launches, upgrades, and uninstalls with
     ['steer', '--run', 'latest', '--source', 'ci', '--event', 'job/123:failed', 'Direction'],
     ['steer', '--run', runID, '--source', '', '--event', '', 'Direction'],
     [...deliver.slice(0, -1), 'Changed direction with an already-used key'],
-  ]) assert.throws(() => buildheadway(args), error => error.status !== 0);
+  ]) assert.throws(() => taskRead(args), error => error.status !== 0);
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'steering.json')), steeringBytes);
   assert.equal(JSON.parse(buildheadway(['tasks', '--json']))[0].attempts, 1);
-  const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
   for (const shell of ['bash', 'zsh', 'fish', 'powershell']) {
     assert.match(taskRead(['completion', shell]), /__complete/);
   }
