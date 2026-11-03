@@ -177,7 +177,23 @@ func TestRoutingWaitRespondsToCancellationAndSteering(t *testing.T) {
 func TestRoutingRuntimeBudgetCancelsCooldownAndSavesPause(t *testing.T) {
 	r, _ := fixtureRunner(t)
 	invoke := r.Invoke
-	r.MaxRuntime = 500 * time.Millisecond
+	// Native Windows race builds can spend more than 500ms preparing a run.
+	// Allow setup, then require the real runtime deadline to cancel an entered,
+	// durably recorded cooldown rather than accepting expiry before dispatch.
+	r.MaxRuntime = 5 * time.Second
+	waited := false
+	r.Wait = func(ctx context.Context, _ time.Duration) error {
+		waited = true
+		if _, ok := ctx.Deadline(); !ok {
+			t.Fatal("cooldown has no configured runtime deadline")
+		}
+		saved, _, err := LoadRun(r.Repo, r.State.RunID)
+		if err != nil || saved.RoutingWait == nil || saved.RoutingWait.Role != "worker" || saved.WorkerCalls != 1 {
+			t.Fatalf("cooldown was not entered and persisted before expiry: %+v %v", saved.RoutingWait, err)
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	r.Invoke = func(ctx context.Context, c Connection, prompt, label string, planner bool, model string) (string, error) {
 		if !planner {
 			return "", errors.New("429 temporarily unavailable")
@@ -186,7 +202,7 @@ func TestRoutingRuntimeBudgetCancelsCooldownAndSavesPause(t *testing.T) {
 	}
 	err := r.Run(context.Background())
 	var limit limitError
-	if !errors.As(err, &limit) || !strings.Contains(err.Error(), "runtime budget") || r.State.WorkerCalls != 1 || r.State.Status != "paused" {
+	if !errors.As(err, &limit) || !strings.Contains(err.Error(), "runtime budget") || !waited || r.State.WorkerCalls != 1 || r.State.Status != "paused" {
 		t.Fatalf("runtime did not interrupt a cooldown: %v calls=%d status=%s", err, r.State.WorkerCalls, r.State.Status)
 	}
 	saved, _, err := LoadRun(r.Repo, r.State.RunID)
