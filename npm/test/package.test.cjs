@@ -446,6 +446,42 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   for (const backend of ['codex', 'claude', 'opencode', 'pi', 'cline', 'gemini']) {
     assert.ok(inventory.agents.some(agent => agent.id === backend), `${backend} missing from native scan`);
   }
+  const agentTools = path.join(root, 'agent tools with spaces');
+  fs.mkdirSync(agentTools);
+  const agentScript = path.join(agentTools, 'scan-fixture.cjs');
+  fs.writeFileSync(agentScript, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.includes('--version')) console.log('installed-scan-fixture');
+else if (args.includes('--help')) console.log('--pure --format --model --file --dir');
+else if (args.includes('models') && args.includes('--refresh') && args.includes('--pure')) {
+  console.log('opencode/verified');
+  console.log(JSON.stringify({cost:{input:0,output:0,cache:{read:0,write:0}},capabilities:{toolcall:true}}));
+} else process.exit(4); // Any inference/authentication would fail this check.
+`, { mode: 0o755 });
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(agentTools, 'opencode.cmd'), '@"' + process.execPath + '" "%~dp0\\scan-fixture.cjs" %*\r\n');
+  } else {
+    fs.copyFileSync(agentScript, path.join(agentTools, 'opencode'));
+    fs.chmodSync(path.join(agentTools, 'opencode'), 0o755);
+  }
+  const scanOptions = { ...options, env: { ...env, BUILDHEADWAY_AGENT_PATH: agentTools } };
+  const scanRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), 'scan', ...args], scanOptions);
+  const beforeScan = fs.readFileSync(path.join(runDir, 'state.json'));
+  const unchecked = JSON.parse(scanRead(['--json', '--agent', 'opencode'])).agents[0];
+  assert.equal(unchecked.installed, true);
+  assert.equal(unchecked.adapter_check, undefined);
+  assert.equal(unchecked.free_models, undefined);
+  assert.ok(!unchecked.capabilities.includes('verified-free-worker'));
+  const checkedAgent = JSON.parse(scanRead(['--json', '--models', '--agent', 'opencode'])).agents[0];
+  assert.equal(checkedAgent.adapter_check.status, 'compatible');
+  assert.equal(checkedAgent.free_models.status, 'verified');
+  assert.deepEqual(checkedAgent.free_models.models, ['opencode/verified']);
+  assert.ok(checkedAgent.free_models.checked_at);
+  assert.match(scanRead(['--models', '--agent', 'opencode']), /inference are not checked/);
+  for (const args of [['--agent', ''], ['--agent', 'unknown'], ['--typo']]) {
+    assert.throws(() => scanRead(args), error => error.status !== 0);
+  }
+  assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeScan);
   assert.throws(() => buildheadway(['--unknown-option']), error => error.status === 2, 'native exit codes must reach the terminal');
   assert.match(buildheadway(['uninstall']), /npm uninstall -g buildheadway/);
   assert.ok(fs.existsSync(path.join(installed, 'bin', binaryName())), 'native self-uninstall must not corrupt an npm package');
