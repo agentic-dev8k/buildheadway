@@ -73,7 +73,7 @@ func Compatible(ctx context.Context, connection Connection, paths Paths) error {
 		needed = []string{"--output-format", "--json-schema", "--tools", "--bare"}
 	case "opencode":
 		if !strings.Contains(help.Global, "--pure") {
-			return errors.New("this OpenCode version lacks plugin-free runs")
+			return errors.New("this OpenCode version lacks --pure (plugin-free runs); use OpenCode 1 from opencode-ai, not OpenCode 2 from @opencode/cli, or select a supported executable with BUILDHEADWAY_AGENT_PATH")
 		}
 		needed = []string{"--format", "--model", "--file", "--dir"}
 		text = help.Run
@@ -107,7 +107,13 @@ func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
 	}
 	argv := []string{executable, "--pure", "models", "opencode", "--verbose", "--refresh"}
 	r.Emit(Event{Kind: "status", Text: "Checking available free models"})
-	result, err := RunProcess(ctx, argv, r.Repo, r.logPath("models"), "", ToolEnv(r.Paths), 90*time.Second, nil)
+	return readFreeModelCatalog(ctx, argv, r.Paths, r.Repo, r.logPath("models"))
+}
+
+// Shared by dispatch and explicit diagnostics: never infer pricing from model
+// names or reuse an earlier scan as authorization for a future model call.
+func readFreeModelCatalog(ctx context.Context, argv []string, paths Paths, repo, logPath string) ([]string, error) {
+	result, err := RunProcess(ctx, argv, repo, logPath, "", ToolEnv(paths), 90*time.Second, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +261,12 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			return "", err
 		}
 		args = openCodeRunArgs(executable, model, promptPath, r.Repo, planner, strings.Contains(help.Run, "--auto"))
+		if strings.Contains(help.Global, "--print-logs") && strings.Contains(help.Global, "--log-level") {
+			// Some OpenCode versions retain a session after a provider rejects
+			// inference. Request only error diagnostics so the harness can stop
+			// promptly instead of waiting for the full invocation deadline.
+			args = append([]string{executable, "--print-logs", "--log-level", "ERROR"}, args[1:]...)
+		}
 		if planner && fullAccess && strings.Contains(help.Run, "--auto") {
 			args = append(args, "--auto")
 		}
@@ -336,7 +348,34 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			}
 		}
 	}
-	result, err := RunProcess(ctx, args, r.Repo, logPath, prompt, env, timeout, stream)
+	processCtx, stopProcess := context.WithCancel(ctx)
+	defer stopProcess()
+	var blockerMu sync.Mutex
+	var providerBlocker error
+	observe := func(line string) {
+		if connection.Backend == "opencode" || connection.Backend == "cline" {
+			if err := agentStreamBlocker(connection.Backend, model, line); err != nil {
+				blockerMu.Lock()
+				if providerBlocker == nil {
+					providerBlocker = err
+				}
+				blockerMu.Unlock()
+				stopProcess()
+			}
+		}
+		if stream != nil {
+			stream(line)
+		}
+	}
+	result, err := RunProcess(processCtx, args, r.Repo, logPath, prompt, env, timeout, observe)
+	blockerMu.Lock()
+	blocker := providerBlocker
+	blockerMu.Unlock()
+	if blocker != nil {
+		// A genuine provider blocker keeps priority over the cancellation it
+		// caused, including a concurrent pause. Never turn it into fallback.
+		return "", errors.Join(blocker, completeAgentOutput(result))
+	}
 	if captureErr := completeAgentOutput(result); captureErr != nil {
 		return "", errors.Join(err, captureErr)
 	}
