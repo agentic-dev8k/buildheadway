@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -261,6 +262,29 @@ func TestFigureOutUIQueueAndHelp(t *testing.T) {
 // Real subprocess probe: exercises argv, stdin, env and adapter response
 // parsing on every native CI OS without requiring an account or model call.
 func TestMain(m *testing.M) {
+	if os.Getenv("BUILDHEADWAY_TEST_SCAN_FIXTURE") == "1" {
+		args, _ := json.Marshal(os.Args[1:])
+		if path := os.Getenv("BUILDHEADWAY_TEST_SCAN_CAPTURE"); path != "" {
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+			if err != nil {
+				os.Exit(2)
+			}
+			f.Write(append(args, '\n'))
+			f.Close()
+		}
+		switch {
+		case contains(os.Args[1:], "--version"):
+			fmt.Println("scan-fixture-1")
+		case contains(os.Args[1:], "--help"):
+			fmt.Println(os.Getenv("BUILDHEADWAY_TEST_SCAN_HELP"))
+		case contains(os.Args[1:], "models"):
+			fmt.Print(os.Getenv("BUILDHEADWAY_TEST_SCAN_CATALOG"))
+		default:
+			fmt.Fprintln(os.Stderr, "unexpected inference or authentication call")
+			os.Exit(4)
+		}
+		os.Exit(0)
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--internal-browser-server" {
 		os.Exit(runMain(os.Args[1:]))
 	}
@@ -270,7 +294,7 @@ func TestMain(m *testing.M) {
 	}
 	if capture := os.Getenv("BUILDHEADWAY_TEST_ADAPTER_CAPTURE"); capture != "" {
 		if contains(os.Args[1:], "--help") {
-			os.Stdout.WriteString("--pure --format --model --file --dir --auto --no-mcp --no-approve --output-format --prompt --approval-mode --mcp-config --strict-mcp-config")
+			os.Stdout.WriteString("--pure --format --model --file --dir --auto --print-logs --log-level --no-mcp --no-approve --output-format --prompt --approval-mode --mcp-config --strict-mcp-config")
 			os.Exit(0)
 		}
 		input, _ := io.ReadAll(os.Stdin)

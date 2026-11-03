@@ -69,33 +69,7 @@ func runMain(args []string) int {
 		case "update":
 			return runUpdate(paths, args[1:])
 		case "scan":
-			inventory := ScanAgents(context.Background(), paths)
-			if contains(args[1:], "--json") {
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				if err := encoder.Encode(inventory); err != nil {
-					return fail(err)
-				}
-			} else {
-				fmt.Printf("BuildHeadway %s · %s/%s\n\n", Version, inventory.OS, inventory.Arch)
-				for _, agent := range inventory.Agents {
-					status := "Not installed"
-					if agent.Installed {
-						status = "Installed · " + agent.Version + " · " + agent.Path
-					}
-					if agent.ExtensionOnly {
-						status = "Editor extension installed; CLI missing"
-					}
-					if !agent.Adapter && agent.Installed {
-						status += " · detection only"
-					}
-					if agent.ProbeError != "" {
-						status += " · " + agent.ProbeError
-					}
-					fmt.Printf("%-14s %s\n", agent.Name, status)
-				}
-			}
-			return 0
+			return runScanCommand(paths, args[1:])
 		case "install":
 			if brandEnv("BUILDHEADWAY_INSTALL_METHOD") == "npm" {
 				fmt.Println("BuildHeadway is installed through npm. Run buildheadway in your project to start.")

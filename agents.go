@@ -39,13 +39,15 @@ var Registry = []AgentDefinition{
 
 type DetectedAgent struct {
 	AgentDefinition
-	Installed     bool     `json:"installed"`
-	Path          string   `json:"path,omitempty"`
-	Version       string   `json:"version,omitempty"`
-	ProbeError    string   `json:"probe_error,omitempty"`
-	ExtensionOnly bool     `json:"extension_only,omitempty"`
-	Capabilities  []string `json:"capabilities,omitempty"`
-	Help          string   `json:"-"`
+	Installed     bool            `json:"installed"`
+	Path          string          `json:"path,omitempty"`
+	Version       string          `json:"version,omitempty"`
+	ProbeError    string          `json:"probe_error,omitempty"`
+	ExtensionOnly bool            `json:"extension_only,omitempty"`
+	Capabilities  []string        `json:"capabilities,omitempty"`
+	AdapterCheck  *AgentCheck     `json:"adapter_check,omitempty"`
+	FreeModels    *FreeModelCheck `json:"free_models,omitempty"`
+	Help          string          `json:"-"`
 }
 type Inventory struct {
 	OS     string          `json:"os"`
@@ -220,7 +222,7 @@ func ScanAgents(ctx context.Context, paths Paths) Inventory {
 					agent.Capabilities = []string{"planner", "native-auth"}
 				}
 				if definition.ID == "opencode" {
-					agent.Capabilities = append(agent.Capabilities, "verified-free-worker")
+					agent.Capabilities = append(agent.Capabilities, "free-worker-adapter")
 				}
 			} else if definition.ID == "cline" {
 				home, _ := os.UserHomeDir()

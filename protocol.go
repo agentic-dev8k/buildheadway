@@ -48,7 +48,7 @@ func (r *Runner) decisionOutputSchema() string {
 }
 
 var transientRE = regexp.MustCompile(`(?i)\b(?:429|503|502|504)\b|rate.?limit|too many requests|overloaded|capacity|temporarily|timed out|timeout|connection reset`)
-var authRE = regexp.MustCompile(`(?i)\b401\b|unauthori[sz]ed|invalid.?api.?key|not logged in|login required|sign.in required|insufficient.?quota|insufficient.?credit|payment required|authentication failed`)
+var authRE = regexp.MustCompile(`(?i)\b401\b|unauthori[sz]ed|invalid.?api.?key|not logged in|login required|sign.in required|insufficient.?quota|insufficient.?credit|payment required|authentication failed|free usage limit reached`)
 var policyRE = regexp.MustCompile(`(?i)free tier can only be used|account (?:has been |is )?suspended|access denied by (?:the )?provider|not available in your (?:country|region)`)
 
 func ResponseTexts(raw string) ([]string, error) {
@@ -56,13 +56,13 @@ func ResponseTexts(raw string) ([]string, error) {
 	var top map[string]any
 	if json.Unmarshal([]byte(raw), &top) == nil {
 		if failure, exists := top["error"]; exists && failure != nil {
-			return nil, fmt.Errorf("agent error: %v", failure)
+			return nil, fmt.Errorf("agent error: %s", agentErrorMessage(top))
 		}
 		if response, ok := top["response"].(string); ok {
 			return []string{response}, nil
 		}
 		if bad, _ := top["is_error"].(bool); bad {
-			return nil, fmt.Errorf("agent error: %v", top["result"])
+			return nil, fmt.Errorf("agent error: %s", agentErrorMessage(top))
 		}
 		if value, ok := top["structured_output"]; ok {
 			data, _ := json.Marshal(value)
@@ -76,6 +76,7 @@ func ResponseTexts(raw string) ([]string, error) {
 		}
 	}
 	texts := []string{}
+	var clineResult *string
 	for _, line := range strings.Split(raw, "\n") {
 		var event map[string]any
 		if json.Unmarshal([]byte(line), &event) != nil {
@@ -83,14 +84,26 @@ func ResponseTexts(raw string) ([]string, error) {
 		}
 		typeName, _ := event["type"].(string)
 		if typeName == "error" {
-			return nil, fmt.Errorf("agent error: %v", event["error"])
+			return nil, fmt.Errorf("agent error: %s", agentErrorMessage(event))
+		}
+		if typeName == "run_result" {
+			reason, _ := event["finishReason"].(string)
+			text, _ := event["text"].(string)
+			if reason != "completed" {
+				return nil, fmt.Errorf("Cline run did not complete (%s): %s", reason, agentErrorMessage(event))
+			}
+			if strings.TrimSpace(text) == "" {
+				return nil, errors.New("Cline returned an empty final result")
+			}
+			clineResult = &text
+			continue
 		}
 		if bad, _ := event["is_error"].(bool); bad {
-			return nil, fmt.Errorf("agent error: %v", event["result"])
+			return nil, fmt.Errorf("agent error: %s", agentErrorMessage(event))
 		}
 		if response, ok := event["response"].(string); ok {
 			if failure, exists := event["error"]; exists && failure != nil {
-				return nil, fmt.Errorf("agent error: %v", failure)
+				return nil, fmt.Errorf("agent error: %s", agentErrorMessage(event))
 			}
 			texts = append(texts, response)
 		}
@@ -128,7 +141,7 @@ func ResponseTexts(raw string) ([]string, error) {
 					texts = append(texts, text)
 				}
 				if innerType, _ := inner["type"].(string); innerType == "error" {
-					return nil, fmt.Errorf("Cline error: %v", inner)
+					return nil, fmt.Errorf("Cline error: %s", agentErrorMessage(inner))
 				}
 			}
 		}
@@ -142,10 +155,36 @@ func ResponseTexts(raw string) ([]string, error) {
 			}
 		}
 	}
+	if clineResult != nil {
+		return []string{*clineResult}, nil
+	}
 	if len(texts) == 0 {
 		return []string{raw}, nil
 	}
 	return texts, nil
+}
+
+// Keep the provider's actionable message, without serializing diagnostic
+// stacks, request objects or credentials attached to a structured error.
+func agentErrorMessage(value any) string {
+	for depth := 0; depth < 4; depth++ {
+		switch v := value.(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				return v
+			}
+		case map[string]any:
+			for _, key := range []string{"message", "error", "data", "text", "result"} {
+				if child, ok := v[key]; ok && child != nil {
+					value = child
+					break
+				}
+			}
+		default:
+			return "agent reported an error without a message"
+		}
+	}
+	return "agent reported an error without a message"
 }
 func messageContent(message map[string]any) string {
 	var out []string

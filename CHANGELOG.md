@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.37.0 — 2026-11-03
+
+- Added `scan --check`, `scan --models` and `--agent NAME`: separate installed executables, required CLI controls and fresh verified-zero-price model catalogs in terminal/JSON output. Checks are read-only for project/run settings, require no inference, retain timestamps and fail clearly for explicitly requested unsupported or missing capabilities. Installation alone is no longer labeled a verified-free worker. Dispatch still refreshes pricing independently.
+- Tested real OpenCode 1.19.5, OpenCode 2.2.5 and Cline 3.0.74 installations. OpenCode 2 is identified as incompatible with actionable package/path guidance. Current Cline final `run_result` replies are parsed; failed/aborted finals cannot establish completion and provider messages do not dump diagnostic stacks. Legacy replies remain supported.
+- OpenCode error-level diagnostics and Cline structured provider events now interrupt hanging invocations on genuine authentication/quota/policy failures, retaining full logs and blocker priority over cancellation. The actual `Free usage limit reached` response is a hard blocker, never a reason to rotate workers. Model/tool text mentioning an error is not treated as a provider event.
+- The live OpenCode goal was blocked by exhausted free usage; Cline was blocked by missing authentication. No successful live implementation or universal free access is claimed. Added protocol, actual subprocess, catalog freshness, CLI/installed-package and no-fallback regressions; completion, pricing, explicit selections, budgets and checkpoint v12 are preserved.
+
 ## 0.36.0 — 2026-11-01
 
 - Trusted scripts can deliver task updates with `steer --run ID --source NAME --event ID --json TEXT`. Source/event pairs are scoped to an explicit saved run, and identical concurrent retries return the original receipt without duplicating work, rewriting the inbox/checkpoint or using a model call. Changed text under an existing key is rejected.
