@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.36.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.37.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -79,6 +79,8 @@ See [Extensions guide](extensions.md) for template and skill folders, argument s
 For retrying trusted scripts, `steer --run ID --source NAME --event ID --json TEXT` returns a durable delivery receipt and coalesces identical events. [Reliable task updates](task-updates.md) covers explicit task addressing and structured waiting/applied status.
 
 ## Agent discovery
+
+Use `buildheadway scan --check` to check installed CLI controls, or `buildheadway scan --models --agent opencode` to refresh zero-price model metadata. Add `--json` for scripts. Neither verifies successful inference or available account quota. See [agent compatibility and free models](agents.md).
 
 BuildHeadway scans PATH and common locations used by Homebrew, npm, nvm, fnm, Volta, Bun, pipx-style user bins, Scoop, WinGet links, and OpenCode's own installer. It displays actual executable paths and installed versions.
 

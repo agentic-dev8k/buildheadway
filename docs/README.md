@@ -4,6 +4,7 @@
 
 - [Quickstart](quickstart.md): install, verify the command, open a project, connect and give the team a goal.
 
+- [Agent compatibility and free models](agents.md): detect real CLIs, check required controls and inspect fresh zero-price models without inference.
 - [Installation and troubleshooting](install.md): platform instructions, updates, diagnostics, and removal.
 - [Shell completions](completions.md): command, option and fixed-value suggestions for Bash, Zsh, Fish and PowerShell.
 - [Terminal usage](usage.md): connect agents, run goals, steer work, inspect evidence, and manage queues.

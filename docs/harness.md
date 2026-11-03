@@ -226,3 +226,7 @@ Search is literal and case-insensitive across the full archived goal, queue ID a
 `/queue archives` and `/queue archives SEARCH` show the first matching page in the app. Use the CLI for later pages. The command scans directory batches and retains at most the requested page plus one matching summary. Searching can read all eligible archives; CLI scans stop on Ctrl+C or a 30-second deadline, and in-app scans have a 10-second deadline. Timeouts/cancellation are errors, not partial success. Invalid records encountered after the cursor fail clearly; unrelated filenames and symlink/non-regular entries are excluded. New archives can appear during a scan, so restart without a cursor to include newly added IDs that sort earlier.
 
 Discovery takes no controller/queue lock, makes no model calls and does not rewrite archives, queues or checkpoints. It is navigation evidence and never marks a goal complete, bypasses a provider blocker or authorizes requeueing.
+
+## Installed-agent and provider diagnostics
+
+[Agent checks](agents.md) distinguish installation, compatible CLI controls and a fresh zero-price catalog. Catalog discovery is not authentication or inference proof and is never reused to authorize dispatch. OpenCode error-level diagnostics and Cline structured provider errors can stop a hung process promptly on account/quota/policy rejection; full logs remain. These hard blockers keep priority over the cancellation they cause, including a concurrent pause, and do not trigger model fallback. A model/tool message quoting an error does not have that authority.
