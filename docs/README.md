@@ -19,6 +19,7 @@
 
 ## Work on BuildHeadway
 
+- [Contributors and credits](credits.md): project history, Claude Code and other agent projects, libraries and offline capability inspection.
 - [Contributing](../CONTRIBUTING.md): development commands and test requirements.
 - [Publishing](maintainers/publishing.md): build artifacts and the separate publication steps.
 - [Validation record](maintainers/validation.md): executed checks, environment limits, and continuation notes.
