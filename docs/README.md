@@ -12,6 +12,7 @@
 - [Automatic instructions](prompts.md): planning, work orders, consultations, repairs and evidence-based handoffs.
 - [Saved agent inputs](inputs.md): inspect the actual outbound prompt files, with bounded byte paging.
 - [Extensions](extensions.md): project workflows, templates, skills, and executable hooks.
+- [Duplicate-safe queued goals](queue-delivery.md): retry intake, recover interrupted claims and retain identities through completion and archiving.
 - [Reliable task updates](task-updates.md): task-scoped event keys, duplicate-safe steering receipts and recovery for trusted integrations.
 - [MCP servers](mcp.md): connect external tools, check servers, and manage agent access.
 - [Browser tools](browser.md): managed Chromium, browser MCP, required UI checks, script/hook failure propagation and saved screenshot integrity.
