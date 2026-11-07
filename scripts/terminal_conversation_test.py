@@ -104,6 +104,10 @@ def run(binary, root, extensions=False):
         wait_for(lambda:b'/discussion' in transcript,'terminal welcome')
         # Scanning completes before the editor accepts ordinary goals.
         wait_for(lambda:b'Connected' in transcript,'ready editor')
+        send('/credits claude')
+        wait_for(lambda:b'anthropics/claude-code' in transcript,'visible Claude credits')
+        send('/about')
+        wait_for(lambda:b'Commit contributors:' in transcript,'project contributor history')
         if extensions:
             send('/workflows')
             wait_for(lambda:b'Repair arithmetic' in transcript,'custom workflow discovery')
