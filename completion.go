@@ -41,6 +41,13 @@ func completionTree() completionNode {
 	add("history", completionNode{flags: append(append([]completionFlag{}, project...), f("--search", true), f("--limit", true))})
 	add("tasks", completionNode{flags: inspection[:len(inspection)-2]})
 	add("doctor", completionNode{flags: []completionFlag{f("--json", false)}})
+	agentIDs := []string{}
+	for _, agent := range Registry {
+		if agent.Adapter {
+			agentIDs = append(agentIDs, agent.ID)
+		}
+	}
+	add("about credits", completionNode{flags: []completionFlag{f("--json", false), {"--agent", true, agentIDs}}})
 	add("scan", completionNode{flags: []completionFlag{f("--json", false), f("--check", false), f("--models", false), {"--agent", true, []string{"codex", "claude", "opencode", "pi", "cline", "gemini", "qwen", "goose", "aider", "kilo", "amp", "droid"}}}})
 	add("install", completionNode{flags: []completionFlag{f("--dir", true), f("--no-path", false), f("--launch", false)}})
 	add("update", completionNode{flags: []completionFlag{f("--from", true), f("--version", true)}})

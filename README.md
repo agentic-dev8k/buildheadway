@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.39.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.40.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -61,4 +61,4 @@ Start with the [documentation index](docs/README.md).
 | [Contributing](CONTRIBUTING.md) | Local development and validation |
 | [Changelog](CHANGELOG.md) | Release changes |
 
-MIT licensed. [Source](https://github.com/agentic-dev8k/buildheadway) · [Issues](https://github.com/agentic-dev8k/buildheadway/issues) · [Brand assets](docs/branding.md)
+MIT licensed. [Source](https://github.com/agentic-dev8k/buildheadway) · [Issues](https://github.com/agentic-dev8k/buildheadway/issues) · [Brand assets](docs/branding.md) · [Contributors and credits](docs/credits.md)

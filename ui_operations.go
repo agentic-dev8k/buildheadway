@@ -86,6 +86,14 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 	argument = strings.TrimSpace(argument)
 	repo, paths := m.repo, m.paths
 	switch command {
+	case "/about", "/credits":
+		return func() tea.Msg {
+			if len(strings.Fields(argument)) > 1 {
+				return inspectionMsg{"Credits", "", errors.New("use /about [AGENT] or /credits [AGENT]")}
+			}
+			report, err := BuildAboutReport(argument)
+			return inspectionMsg{"Credits", FormatAbout(report), err}
+		}, true
 	case "/context":
 		return func() tea.Msg {
 			value, formatted, err := InspectRun(repo, argument, "context")

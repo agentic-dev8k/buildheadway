@@ -44,6 +44,10 @@ func tomlMCP(value any) string {
 	panic("unsupported internal MCP configuration type")
 }
 
+func supportsMCPProfileForwarding(backend string) bool {
+	return backend == "codex" || backend == "claude" || backend == "opencode"
+}
+
 // Only full-access seniors receive external tools. Workers keep their pinned
 // plugin-free configuration; restricted consultations cannot acquire MCP access.
 func (r *Runner) prepareMCP(ctx context.Context, connection Connection, planner, full bool, args, env []string) ([]string, []string, error) {
@@ -58,7 +62,7 @@ func (r *Runner) prepareMCP(ctx context.Context, connection Connection, planner,
 			}
 		}
 	}
-	if len(active) != 0 && connection.Backend != "codex" && connection.Backend != "claude" && connection.Backend != "opencode" {
+	if len(active) != 0 && !supportsMCPProfileForwarding(connection.Backend) {
 		return nil, nil, mcpSetupError{"configured MCP servers require a full-access Codex, Claude or OpenCode senior; disable them or choose a supported senior"}
 	}
 	for name, server := range active {

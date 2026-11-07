@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.40.0 — 2026-11-08
+
+- Added offline `about` and `credits`, with JSON and optional `--agent NAME`, plus `/about` and `/credits` in the terminal palette. Claude Code, Codex, OpenCode, Pi, Cline, Gemini CLI and the terminal/MCP libraries receive visible upstream acknowledgments, with links to project contribution history.
+- Capability inspection distinguishes senior adapters, OpenCode's verified-free worker path and supported full-access MCP/browser forwarding. It shares the MCP backend predicate with actual dispatch; workers and restricted consultations retain their limits. Credits describe integration support, not installation, account access, inference proof, endorsement or invented commit authorship.
+- Inspection runs before user-path resolution and remains available with missing/broken settings or project state. Terminal inspection preserves an active goal's connections, counters, cancellation and palette drafts. Added actual CLI/installed-package/terminal regressions and packaged credits documentation; aligned contributor test instructions with CI's 600-second watchdog.
+
 ## 0.39.0 — 2026-11-07
 
 - New queued goals recover the same checkpoint when initial checkpoint publication succeeded but the queue's run reference was interrupted. Stable project-local run addresses avoid history scans and duplicate runs. Saved explicit references, including older random IDs, remain compatible; queue/archive v1 and checkpoint v12 are unchanged.
