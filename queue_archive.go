@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const queueArchiveLimit = 1 << 20
@@ -66,6 +65,9 @@ func PruneQueue(repo string) (QueuePruneReport, error) {
 	for _, item := range queue.Items {
 		if !finishedQueuedGoal(item) {
 			continue
+		}
+		if err := ensureQueueDelivery(repo, item); err != nil {
+			return report, err
 		}
 		data, err := json.MarshalIndent(queueArchivedGoal{Version: 1, Item: item}, "", "  ")
 		if err != nil {
@@ -156,7 +158,7 @@ func ReadQueueArchive(repo, id string) (QueuedGoal, error) {
 	if archive.Version != 1 || item.ID != id || !finishedQueuedGoal(item) {
 		return QueuedGoal{}, errors.New("archive identity or finished status is invalid")
 	}
-	if strings.TrimSpace(item.Goal) == "" || len(item.Goal) > 32000 || (item.Mode != "" && item.Mode != "figureout") || (item.RunID != "" && !validRunID.MatchString(item.RunID)) || len(item.CreatedAt) > 128 || len(item.UpdatedAt) > 128 {
+	if !validQueueGoal(item.Goal) || !validSteeringOrigin(item.Source, item.EventID) || (item.Source != "" && item.CreatedAt == "") || (item.Mode != "" && item.Mode != "figureout") || (item.RunID != "" && !validRunID.MatchString(item.RunID)) || len(item.CreatedAt) > 128 || len(item.UpdatedAt) > 128 {
 		return QueuedGoal{}, errors.New("archived goal metadata is invalid")
 	}
 	return item, nil

@@ -213,6 +213,11 @@ func TestQueueCrashClaimReusesCheckpointAndFailureHoldsLaterGoals(t *testing.T) 
 	if _, err := QueueAdd(repo, "second goal"); err != nil {
 		t.Fatal(err)
 	}
+	queuePath := filepath.Join(repo, ".forge", "queue.json")
+	pendingQueue, err := os.ReadFile(queuePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	lock, err := acquireProjectLock(repo, "lock", false)
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +235,12 @@ func TestQueueCrashClaimReusesCheckpointAndFailureHoldsLaterGoals(t *testing.T) 
 		lock.Close()
 		t.Fatal("removed active claim")
 	}
-	lock.Close() // Simulate a process exiting after its claim but before dispatch.
+	lock.Close()
+	// Replay the earlier crash window: the initial checkpoint was published,
+	// but the queue's run reference was not. A retry must recover that run too.
+	if err := os.WriteFile(queuePath, pendingQueue, 0600); err != nil {
+		t.Fatal(err)
+	}
 	attempts := 0
 	err = runQueuedWith(context.Background(), paths, settings, repo, true, noEmit, func(r *Runner) {
 		attempts++
@@ -259,6 +269,21 @@ func TestQueueCrashClaimReusesCheckpointAndFailureHoldsLaterGoals(t *testing.T) 
 	rows, err := RunHistory(repo)
 	if err != nil || len(rows) != 2 {
 		t.Fatal("duplicate queued runs")
+	}
+	// An older queue copy must also recover completed checkpoints rather than
+	// repeating work that already passed executable checks and review.
+	if err := os.WriteFile(queuePath, pendingQueue, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := claimQueuedRunner(paths, settings, repo, noEmit); !errors.Is(err, errQueueEmpty) {
+		t.Fatal("completed checkpoints were not recovered", err)
+	}
+	recovered, err := ReadQueue(repo)
+	if err != nil || recovered.Items[0].RunID != queue.Items[0].RunID || recovered.Items[1].RunID != queue.Items[1].RunID || recovered.Items[0].Status != "complete" || recovered.Items[1].Status != "complete" {
+		t.Fatal("completed queue history was reopened", err)
+	}
+	if history, err := RunHistory(repo); err != nil || len(history) != 2 {
+		t.Fatal("restored completed queue duplicated runs", err)
 	}
 }
 

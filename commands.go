@@ -35,6 +35,8 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 	archiveSearch := flags.String("search", "", "Search archived queue ID, status or goal (queue archives)")
 	archiveAfter := flags.String("after", "", "Continue after this queue ID (queue archives)")
 	archiveLimit := flags.Int("limit", 20, "Archived goals per page, 1–100 (queue archives)")
+	queueSource := flags.String("source", "", "Trusted sender label (queue add/figureout)")
+	queueEvent := flags.String("event", "", "Stable event ID for duplicate-safe queue delivery")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -51,14 +53,30 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	values := flags.Args()
-	archiveFlags := false
+	archiveFlags, deliveryFlags := false, false
 	flags.Visit(func(f *flag.Flag) {
 		if f.Name == "search" || f.Name == "after" || f.Name == "limit" {
 			archiveFlags = true
 		}
+		if f.Name == "source" || f.Name == "event" {
+			deliveryFlags = true
+		}
 	})
 	if archiveFlags && (kind != "queue" || len(values) == 0 || values[0] != "archives") {
 		return fail(errors.New("--search, --after and --limit apply only to queue archives"))
+	}
+	if deliveryFlags && (kind != "queue" || len(values) == 0 || (values[0] != "add" && values[0] != "figureout")) {
+		return fail(errors.New("--source and --event apply only to queue add/figureout and must precede the action"))
+	}
+	if deliveryFlags && (*queueSource == "" || *queueEvent == "") {
+		return fail(errors.New("queue event delivery requires nonempty --source and --event values"))
+	}
+	if kind == "queue" {
+		for _, v := range values {
+			if v == "--source" || v == "--event" || strings.HasPrefix(v, "--source=") || strings.HasPrefix(v, "--event=") {
+				return fail(errors.New("queue delivery flags must precede add/figureout; quote the complete goal as one argument"))
+			}
+		}
 	}
 	var value any
 	var formatted string
@@ -232,10 +250,12 @@ func runProjectCommand(paths Paths, kind string, args []string) int {
 			item, err = ReadQueueArchive(repo, values[0])
 			value, formatted = item, FormatQueue(GoalQueue{Version: 1, Items: []QueuedGoal{item}})
 		case "add", "figureout":
-			var item QueuedGoal
-			item, err = QueueAddMode(repo, strings.Join(values, " "), "figureout")
-			value = item
-			formatted = "Queued " + item.ID + "\n" + item.Goal
+			var receipt QueueReceipt
+			receipt, err = DeliverQueuedGoal(repo, strings.Join(values, " "), "figureout", *queueSource, *queueEvent)
+			value, formatted = receipt.Item, FormatQueueReceipt(receipt)
+			if deliveryFlags {
+				value = receipt
+			}
 		case "remove":
 			if len(values) != 1 {
 				return fail(errors.New("usage: buildheadway queue remove QUEUE_ID"))

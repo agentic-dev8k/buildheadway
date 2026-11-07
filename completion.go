@@ -54,7 +54,7 @@ func completionTree() completionNode {
 	add("logs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--last-check", false), f("--bytes", true), f("--offset", true))})
 	add("workflow skill prompt", completionNode{flags: append(append([]completionFlag{}, project...), f("--preview", false))})
 	queue := completionNode{flags: project, children: map[string]completionNode{}}
-	queue.flags = append(append([]completionFlag{}, project...), f("--search", true), f("--after", true), f("--limit", true))
+	queue.flags = append(append([]completionFlag{}, project...), f("--search", true), f("--after", true), f("--limit", true), f("--source", true), f("--event", true))
 	for _, action := range strings.Fields("list add figureout remove move run next prune archive archives") {
 		queue.children[action] = completionNode{}
 	}
