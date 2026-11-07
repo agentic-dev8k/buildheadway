@@ -12,6 +12,8 @@ import (
 )
 
 type QueueArchiveSummary struct {
+	Source        string `json:"source,omitempty"`
+	EventID       string `json:"event_id,omitempty"`
 	ID            string `json:"id"`
 	Goal          string `json:"goal"`
 	GoalTruncated bool   `json:"goal_truncated,omitempty"`
@@ -78,11 +80,11 @@ func ListQueueArchives(ctx context.Context, repo, search, after string, limit in
 			if err != nil {
 				return QueueArchivePage{}, fmt.Errorf("queue archive %s: %w", id, err)
 			}
-			if query != "" && !strings.Contains(strings.ToLower(item.ID+"\n"+item.Status+"\n"+item.Goal), query) {
+			if query != "" && !strings.Contains(strings.ToLower(item.ID+"\n"+item.Status+"\n"+item.Goal+"\n"+item.Source+"\n"+item.EventID), query) {
 				continue
 			}
 			goal, truncated := evidenceExcerpt(item.Goal, 240)
-			summary := QueueArchiveSummary{ID: item.ID, Goal: goal, GoalTruncated: truncated, Status: item.Status, Mode: item.Mode, RunID: item.RunID, UpdatedAt: item.UpdatedAt}
+			summary := QueueArchiveSummary{Source: item.Source, EventID: item.EventID, ID: item.ID, Goal: goal, GoalTruncated: truncated, Status: item.Status, Mode: item.Mode, RunID: item.RunID, UpdatedAt: item.UpdatedAt}
 			index := sort.Search(len(page.Items), func(i int) bool { return page.Items[i].ID >= id })
 			page.Items = append(page.Items, QueueArchiveSummary{})
 			copy(page.Items[index+1:], page.Items[index:])
@@ -113,6 +115,9 @@ func FormatQueueArchives(page QueueArchivePage) string {
 	var out strings.Builder
 	for _, item := range page.Items {
 		fmt.Fprintf(&out, "[%s] %s\n  %s\n", item.Status, item.ID, strings.ReplaceAll(item.Goal, "\n", " "))
+		if item.Source != "" {
+			fmt.Fprintf(&out, "  source: %s · event: %s\n", item.Source, item.EventID)
+		}
 	}
 	if page.More {
 		fmt.Fprintf(&out, "More matches: repeat the same search with --after %s.\n", page.NextAfter)

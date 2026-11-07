@@ -18,6 +18,9 @@ import (
 
 func main() { os.Exit(runMain(os.Args[1:])) }
 func runMain(args []string) int {
+	if len(args) > 0 && (args[0] == "about" || args[0] == "credits") {
+		return runAboutCommand(args[1:])
+	}
 	if len(args) > 0 && args[0] == "completion" {
 		return runCompletion(args[1:])
 	}
@@ -150,6 +153,7 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway --demo               Try the offline repair loop")
 		fmt.Println("  buildheadway completion bash      Generate shell completions (also zsh/fish/powershell)")
 		fmt.Println("  buildheadway scan                 Find installed coding agents")
+		fmt.Println("  buildheadway about                Project credits and agent capabilities")
 		fmt.Println("  buildheadway install              Install for this user")
 		fmt.Println("  buildheadway update               Upgrade a native installation")
 		fmt.Println("  buildheadway doctor               Diagnose installation and settings")

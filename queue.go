@@ -11,6 +11,8 @@ import (
 )
 
 type QueuedGoal struct {
+	Source    string `json:"source,omitempty"`
+	EventID   string `json:"event_id,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 	ID        string `json:"id"`
 	Goal      string `json:"goal"`
@@ -39,13 +41,23 @@ func ReadQueue(repo string) (GoalQueue, error) {
 	if queue.Version != 1 || len(queue.Items) > 1000 {
 		return queue, errors.New("invalid goal queue")
 	}
-	ids := map[string]bool{}
+	ids, deliveries := map[string]bool{}, map[string]bool{}
 	for _, item := range queue.Items {
 		if item.Mode != "" && item.Mode != "figureout" {
 			return queue, errors.New("invalid queued goal mode")
 		}
-		if !validRunID.MatchString(item.ID) || ids[item.ID] || strings.TrimSpace(item.Goal) == "" || len(item.Goal) > 32000 {
+		if !validRunID.MatchString(item.ID) || ids[item.ID] || !validQueueGoal(item.Goal) || !validSteeringOrigin(item.Source, item.EventID) {
 			return queue, errors.New("invalid queued goal")
+		}
+		if item.Source != "" {
+			key := item.Source + "\x00" + item.EventID
+			if deliveries[key] {
+				return queue, errors.New("duplicate saved queue source/event")
+			}
+			if item.CreatedAt == "" || len(item.CreatedAt) > 128 {
+				return queue, errors.New("invalid queued delivery creation time")
+			}
+			deliveries[key] = true
 		}
 		if item.RunID != "" && !validRunID.MatchString(item.RunID) {
 			return queue, errors.New("invalid queued run ID")
@@ -69,33 +81,8 @@ func QueueAdd(repo, goal string) (QueuedGoal, error) {
 	return QueueAddMode(repo, goal, "")
 }
 func QueueAddMode(repo, goal, mode string) (QueuedGoal, error) {
-	if mode != "" && mode != "figureout" {
-		return QueuedGoal{}, errors.New("invalid goal mode")
-	}
-	goal = strings.TrimSpace(goal)
-	if goal == "" || len(goal) > 32000 {
-		return QueuedGoal{}, errors.New("a queued goal must contain 1 to 32000 bytes")
-	}
-	lock, err := acquireProjectLock(repo, "queue.lock", true)
-	if err != nil {
-		return QueuedGoal{}, err
-	}
-	defer lock.Close()
-	queue, err := ReadQueue(repo)
-	if err != nil {
-		return QueuedGoal{}, err
-	}
-	if len(queue.Items) >= 1000 {
-		return QueuedGoal{}, errors.New("queue history is full (1000 goals)")
-	}
-	id, err := newID("q-")
-	if err != nil {
-		return QueuedGoal{}, err
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	item := QueuedGoal{ID: id, Goal: goal, Mode: mode, Status: "pending", CreatedAt: now, UpdatedAt: now}
-	queue.Items = append(queue.Items, item)
-	return item, saveQueue(repo, queue)
+	receipt, err := DeliverQueuedGoal(repo, goal, mode, "", "")
+	return receipt.Item, err
 }
 func QueueRemove(repo, id string) error {
 	lock, err := acquireProjectLock(repo, "queue.lock", true)
@@ -124,6 +111,9 @@ func QueueRemove(repo, id string) error {
 				return errors.New("pause the active goal before removing it from the queue")
 			}
 			defer repoLock.Close()
+		}
+		if err := ensureQueueDelivery(repo, *item); err != nil {
+			return err
 		}
 		item.Status, item.UpdatedAt = "canceled", time.Now().UTC().Format(time.RFC3339)
 		return saveQueue(repo, queue)
@@ -157,6 +147,9 @@ func QueueMove(repo, id string, position int) error {
 		return errors.New("queue item not found")
 	}
 	item := queue.Items[index]
+	if err := ensureQueueDelivery(repo, item); err != nil {
+		return err
+	}
 	queue.Items = append(queue.Items[:index], queue.Items[index+1:]...)
 	queue.Items = append(queue.Items, QueuedGoal{})
 	copy(queue.Items[position:], queue.Items[position-1:])
@@ -173,6 +166,9 @@ func FormatQueue(queue GoalQueue) string {
 		if item.Mode != "" {
 			fmt.Fprintf(&out, "  mode: %s\n", item.Mode)
 		}
+		if item.Source != "" {
+			fmt.Fprintf(&out, "  source: %s · event: %s\n", item.Source, item.EventID)
+		}
 		if item.RunID != "" {
 			fmt.Fprintf(&out, "  run: %s\n", item.RunID)
 		}
@@ -184,8 +180,8 @@ func FormatQueue(queue GoalQueue) string {
 }
 
 // Called with the repository lock held, so claims and worker dispatch cannot
-// overlap a second BuildHeadway controller. A checkpoint exists before the claim is
-// saved. After a crash the claim resumes that checkpoint, never creates a copy.
+// overlap a second BuildHeadway controller. Stable run addresses recover the
+// checkpoint even if the queue's run reference was not published before a crash.
 func claimQueuedRunner(paths Paths, settings Settings, repo string, emit Emit) (*Runner, error) {
 	lock, err := acquireProjectLock(repo, "queue.lock", true)
 	if err != nil {
@@ -201,38 +197,21 @@ func claimQueuedRunner(paths Paths, settings Settings, repo string, emit Emit) (
 		if item.Status == "complete" || item.Status == "canceled" {
 			continue
 		}
-		var runner *Runner
-		if item.RunID != "" {
-			runner, err = ResumeRunner(paths, settings, repo, item.RunID, emit)
-			if err != nil {
-				return nil, fmt.Errorf("queued goal %s: %w", item.ID, err)
-			}
-			if runner.State.QueueID != item.ID {
-				return nil, errors.New("queue and checkpoint identities do not match")
-			}
-			if runner.State.Status == "complete" {
-				item.Status, item.Error = "complete", ""
-				item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-				if err := saveQueue(repo, queue); err != nil {
-					return nil, err
-				}
-				continue
-			}
-		} else {
-			runner, err = NewRunner(paths, settings, repo, item.Goal, false, emit)
-			if err != nil {
+		if err := ensureQueueDelivery(repo, *item); err != nil {
+			return nil, err
+		}
+		runner, err := prepareQueuedRunner(paths, settings, repo, *item, emit)
+		if err != nil {
+			return nil, err
+		}
+		item.RunID = runner.State.RunID
+		if runner.State.Status == "complete" {
+			item.Status, item.Error = "complete", ""
+			item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			if err := saveQueue(repo, queue); err != nil {
 				return nil, err
 			}
-			if item.Mode == "figureout" {
-				if err := runner.EnableFigureOut("full"); err != nil {
-					return nil, err
-				}
-			}
-			runner.State.QueueID = item.ID
-			if err := runner.State.Save(runner.Dir); err != nil {
-				return nil, err
-			}
-			item.RunID = runner.State.RunID
+			continue
 		}
 		item.Status, item.Error = "running", ""
 		item.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -267,6 +246,12 @@ func (r *Runner) syncQueue() error {
 		}
 		if item.RunID != r.State.RunID {
 			return errors.New("queued goal points to another run")
+		}
+		if err := validateQueuedCheckpoint(*item, r.State); err != nil {
+			return err
+		}
+		if err := ensureQueueDelivery(r.Repo, *item); err != nil {
+			return err
 		}
 		item.Status, item.Error = "blocked", r.State.Error
 		if r.State.Status == "complete" {

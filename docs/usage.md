@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.37.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.40.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -220,7 +220,7 @@ After checks, BuildHeadway fingerprints source content and compares it again bef
 
 Workers receive recent task reports and failed-check output. If a worker fails, the remaining ordered tasks wait for checks and a new review, so work that depends on the failed task is not dispatched blindly. The team sees the remaining tasks and recovery context. Default team goals change strategy after stalled rounds and keep going. The explicit single-planner `buildheadway run` workflow pauses after three additional unchanged verification rounds; `/status` explains the situation and `/resume` starts a fresh recovery attempt. Either workflow can set or disable that limit with `--max-stalled-cycles`. There is no default cycle or model-call cap in team mode.
 
-The terminal shows the cycle and batch progress while working. `/events` keeps the latest 200 harness events; full task history and child-process logs remain under the project's `.forge/runs/` directory. Inspection commands also work from another terminal without connecting an agent. The project queue is saved to disk. Goals typed while a job is running join it automatically. After a normal goal succeeds, pending queued goals run in order. A failed or paused goal holds the remaining queue. Closing BuildHeadway preserves the queue; /next resumes its first unfinished goal, and /queue run drains it. Saving a plan or running standalone checks does not start waiting goals. No work runs while BuildHeadway is closed.
+The terminal shows the cycle and batch progress while working. `/events` keeps the latest 200 harness events; full task history and child-process logs remain under the project's `.forge/runs/` directory. Inspection commands also work from another terminal without connecting an agent. The project queue is saved to disk. Trusted scripts can use [duplicate-safe queue delivery](queue-delivery.md) to retry an authorized new goal without scheduling copies. Goals typed while a job is running join it automatically. After a normal goal succeeds, pending queued goals run in order. A failed or paused goal holds the remaining queue. Closing BuildHeadway preserves the queue; /next resumes its first unfinished goal, and /queue run drains it. Saving a plan or running standalone checks does not start waiting goals. No work runs while BuildHeadway is closed.
 
 ## Pause and resume from another terminal
 

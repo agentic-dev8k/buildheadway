@@ -66,6 +66,19 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(buildheadway(['--version']), new RegExp('BuildHeadway ' + pkg.version.replaceAll('.', '\\.')));
   const installed = path.join(prefix, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', pkg.name);
   const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
+  const about = JSON.parse(buildheadway(['about', '--json']));
+  assert.equal(about.name, 'BuildHeadway');
+  assert.equal(about.version, metadata.version);
+  assert.deepEqual(about.agent_projects.map(a => a.id), ['codex', 'claude', 'opencode', 'pi', 'cline', 'gemini']);
+  assert.deepEqual(JSON.parse(buildheadway(['credits', '--json'])), about);
+  const claudeCredit = JSON.parse(taskRead(['credits', '--agent', 'claude', '--json']));
+  assert.equal(claudeCredit.agent_projects.length, 1);
+  assert.equal(claudeCredit.agent_projects[0].name, 'Claude Code');
+  assert.equal(claudeCredit.agent_projects[0].url, 'https://github.com/anthropics/claude-code');
+  assert.equal(claudeCredit.agent_projects[0].free_worker_adapter, false);
+  assert.equal(claudeCredit.agent_projects[0].mcp_profile_forwarding, true);
+  assert.match(taskRead(['credits', '--agent', 'claude']), /Claude Code/);
+  assert.throws(() => taskRead(['credits', '--agent', 'qwen']), error => error.status !== 0);
   assert.ok(fs.existsSync(path.join(installed, 'bin', binaryName())));
   assert.match(fs.readFileSync(path.join(installed, 'README.md'), 'utf8'), /assets\/brand\/buildheadway-logo-on-white-v1\.png/);
   checkDocs(installed);
@@ -445,6 +458,89 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(inventory.os, { win32: 'windows', linux: 'linux', darwin: 'darwin' }[process.platform]);
   for (const backend of ['codex', 'claude', 'opencode', 'pi', 'cline', 'gemini']) {
     assert.ok(inventory.agents.some(agent => agent.id === backend), `${backend} missing from native scan`);
+  }
+  {
+    const deliveryArgs = ['queue', '--json', '--source', 'npm-test', '--event', 'event-42', 'add', 'Keep café request identity'];
+    const delivered = JSON.parse(taskRead(deliveryArgs));
+    assert.equal(delivered.duplicate, false);
+    assert.equal(delivered.archived, false);
+    assert.equal(delivered.item.source, 'npm-test');
+    assert.equal(delivered.item.event_id, 'event-42');
+    assert.equal(delivered.item.goal, 'Keep café request identity');
+    const queueFile = path.join(project, '.forge', 'queue.json');
+    const queueBefore = fs.readFileSync(queueFile);
+    const checkpointBefore = fs.readFileSync(path.join(runDir, 'state.json'));
+    const repeated = JSON.parse(taskRead(deliveryArgs));
+    assert.equal(repeated.duplicate, true);
+    assert.deepEqual(repeated.item, delivered.item);
+    assert.deepEqual(fs.readFileSync(queueFile), queueBefore);
+    for (const badArgs of [
+      [...deliveryArgs.slice(0, -1), 'Changed request'],
+      ['queue', '--source', 's', 'add', 'Unpaired key'],
+      ['queue', '--source', '', '--event', '', 'add', 'Empty keys'],
+      ['queue', 'add', '--source', 's', '--event', 'e', 'Misplaced keys'],
+      ['queue', '--source', 's', '--event', 'e', 'run'],
+    ]) assert.throws(() => taskRead(badArgs), error => error.status !== 0);
+    taskRead(['queue', 'remove', delivered.item.id]);
+    taskRead(['queue', 'prune']);
+    const archivedRetry = JSON.parse(taskRead(deliveryArgs));
+    assert.equal(archivedRetry.duplicate, true);
+    assert.equal(archivedRetry.archived, true);
+    assert.equal(archivedRetry.item.id, delivered.item.id);
+    assert.equal(archivedRetry.item.status, 'canceled');
+    assert.deepEqual(JSON.parse(taskRead(['queue', '--json'])).items, []);
+    const originSearch = JSON.parse(taskRead(['queue', '--json', '--search', 'event-42', 'archives']));
+    assert.equal(originSearch.items.length, 1);
+    assert.equal(originSearch.items[0].source, 'npm-test');
+    assert.equal(originSearch.items[0].event_id, 'event-42');
+    assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), checkpointBefore);
+  }
+  {
+    // Real installed CLI, restored queue/checkpoint fixtures and no inference.
+    const recoveryProject = path.join(root, 'queued recovery with spaces');
+    const recoveryRuns = path.join(recoveryProject, '.forge', 'runs');
+    const recoveryQueue = path.join(recoveryProject, '.forge', 'queue.json');
+    const recoverySettings = path.join(home, 'config', 'connection.json');
+    const previousSettings = fs.existsSync(recoverySettings) ? fs.readFileSync(recoverySettings) : null;
+    fs.mkdirSync(recoveryRuns, { recursive: true });
+    fs.writeFileSync(recoverySettings, JSON.stringify({version:3,planner:{backend:'codex',executable:path.join(root,'must-not-execute')},worker:{backend:'opencode',model:'auto'}}));
+    const queueID = 'q-interrupted-claim';
+    const recoveredID = 'queued-' + require('node:crypto').createHash('sha256').update(queueID).digest('hex');
+    const recoveryDir = path.join(recoveryRuns, recoveredID);
+    fs.mkdirSync(recoveryDir);
+    const savedState = {version:3,run_id:recoveredID,queue_id:queueID,goal:'Retain the completed goal',status:'complete',phase:'checking',cycle:1,planner_calls:2,worker_calls:1,next_task:0,tasks:[]};
+    const recoveredCheckpoint = path.join(recoveryDir, 'state.json');
+    fs.writeFileSync(recoveredCheckpoint, JSON.stringify(savedState));
+    const checkpointBytes = fs.readFileSync(recoveredCheckpoint);
+    const pending = {id:queueID,goal:savedState.goal,status:'pending',created_at:'2026-11-07T00:00:00Z',updated_at:'2026-11-07T00:00:00Z'};
+    fs.writeFileSync(recoveryQueue, JSON.stringify({version:1,items:[pending]}));
+    const start = () => taskRead(['queue','--project',recoveryProject,'next']);
+    try {
+      assert.throws(start, error => error.status !== 0 && /no waiting goals/.test(error.stderr), 'completed restoration must not invoke an agent');
+      const recovered = JSON.parse(fs.readFileSync(recoveryQueue)).items[0];
+      assert.equal(recovered.run_id,recoveredID);
+      assert.equal(recovered.status,'complete');
+      assert.deepEqual(fs.readFileSync(recoveredCheckpoint),checkpointBytes,'queue restoration must not rewrite the checkpoint');
+      assert.deepEqual(fs.readdirSync(recoveryRuns),[recoveredID],'queue restoration must not create another run');
+      for (const mismatch of [{goal:'Changed task'}, {mode:'figureout'}]) {
+        const altered={...pending,run_id:recoveredID,...mismatch};
+        fs.writeFileSync(recoveryQueue, JSON.stringify({version:1,items:[altered]}));
+        const before=fs.readFileSync(recoveryQueue);
+        assert.throws(start,error=>error.status!==0 && /goal text or mode/.test(error.stderr));
+        assert.deepEqual(fs.readFileSync(recoveryQueue),before);
+        assert.deepEqual(fs.readFileSync(recoveredCheckpoint),checkpointBytes);
+      }
+      fs.writeFileSync(recoveryQueue, JSON.stringify({version:1,items:[pending]}));
+      fs.unlinkSync(recoveredCheckpoint);
+      const before=fs.readFileSync(recoveryQueue);
+      assert.throws(start,error=>error.status!==0 && /no readable checkpoint/.test(error.stderr),'missing saved history must block instead of replacing the run');
+      assert.deepEqual(fs.readFileSync(recoveryQueue),before);
+      assert.deepEqual(fs.readdirSync(recoveryDir),[]);
+      assert.deepEqual(fs.readdirSync(recoveryRuns),[recoveredID]);
+    } finally {
+      if(previousSettings===null) fs.unlinkSync(recoverySettings);
+      else fs.writeFileSync(recoverySettings,previousSettings);
+    }
   }
   const agentTools = path.join(root, 'agent tools with spaces');
   fs.mkdirSync(agentTools);

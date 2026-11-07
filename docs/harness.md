@@ -32,6 +32,14 @@ The separate `.forge/runs/RUN_ID/control.json` format is version 1, limited to 4
 
 Trusted scripts can route a direction to an explicit saved run with source/event keys. Admission is deterministic and serialized with steering application/completion; identical retries return the original receipt, including after application or completion, without writing another update or invoking a model. Different payloads under the same key and conflicting checkpoint/inbox copies block. Applied keys survive an older inbox backup, and existing history/text limits still apply. Pending directions retain normal replanning, partial-work checks and fresh approval. See [Reliable task updates](task-updates.md) for CLI/JSON examples and the boundary between local intake and an always-online event service.
 
+## Duplicate-safe queue intake (0.38)
+
+Trusted scripts can submit queued goals with source/event keys. Retries preserve the original queue ID, current outcome and run; completed or canceled archived requests are not recreated. Publication recovery repairs missing lookup metadata from retained queue records, while missing/conflicting accepted history blocks. Admission does not call a model or resume blocked work. Pricing, budgets, execution locks, acceptance and senior-review gates are unchanged. See [duplicate-safe queued goals](queue-delivery.md) for the retention and backup limits.
+
+## Queue checkpoint recovery (0.39)
+
+New queued runs have stable addresses derived from their queue IDs. An interrupted queue-reference publication reconnects to the saved checkpoint without creating another run; completed checkpoints are not re-executed. Saved explicit IDs remain compatible. Goal text, mode and identities must agree before dispatch and progress synchronization. Ambiguous reservations, missing/corrupt checkpoints and symlinks block instead of replacing saved work. The normal explicit start/resume, budgets, provider blockers, source verification and senior-review gates still apply. See [queue claim recovery](queue-delivery.md#recovering-an-interrupted-queue-claim-039) for supported recovery boundaries and backup requirements.
+
 ## Acceptance evidence
 
 Version 0.11 makes acceptance coverage an executable gate for all new and resumed goals. Each retained success criterion must have at least one meaningful check. A senior can propose the mapping in its structured decision:

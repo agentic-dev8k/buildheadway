@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.40.0 — 2026-11-08
+
+- Added offline `about` and `credits`, with JSON and optional `--agent NAME`, plus `/about` and `/credits` in the terminal palette. Claude Code, Codex, OpenCode, Pi, Cline, Gemini CLI and the terminal/MCP libraries receive visible upstream acknowledgments, with links to project contribution history.
+- Capability inspection distinguishes senior adapters, OpenCode's verified-free worker path and supported full-access MCP/browser forwarding. It shares the MCP backend predicate with actual dispatch; workers and restricted consultations retain their limits. Credits describe integration support, not installation, account access, inference proof, endorsement or invented commit authorship.
+- Inspection runs before user-path resolution and remains available with missing/broken settings or project state. Terminal inspection preserves an active goal's connections, counters, cancellation and palette drafts. Added actual CLI/installed-package/terminal regressions and packaged credits documentation; aligned contributor test instructions with CI's 600-second watchdog.
+
+## 0.39.0 — 2026-11-07
+
+- New queued goals recover the same checkpoint when initial checkpoint publication succeeded but the queue's run reference was interrupted. Stable project-local run addresses avoid history scans and duplicate runs. Saved explicit references, including older random IDs, remain compatible; queue/archive v1 and checkpoint v12 are unchanged.
+- Queue/checkpoint goal text, mode and identities must agree before dispatch or progress synchronization. Missing/corrupt checkpoints, ambiguous reserved directories, nonregular files and symlinks block instead of replacing history. Completed new runs reconnect from an older pending queue copy without repeating implementation.
+- Recovery preserves pinned team/worker/configuration, budget counters and blocker evidence. Explicit resume still runs the existing partial-work verification, fresh free-pricing checks, executed acceptance and senior review. Added crash-boundary, full repair-loop, old-ID compatibility, conflict/refusal and installed-launcher regressions, with recovery and backup documentation.
+
+## 0.38.0 — 2026-11-05
+
+- Added optional source/event keys to CLI queue add/figureout, with explicit duplicate/archived receipts. Identical concurrent retries retain the original queue ID and current record without reordering, re-enqueuing, model access or rewriting intact records. Changed goals or modes under the same key are rejected; ordinary unkeyed queue behavior/JSON is retained.
+- Retain event identity through cancellation, completion and pruning using bounded, root-relative per-event metadata. Interrupted publication can repair a missing receipt from the saved queue before execution or lifecycle changes. Missing or conflicting accepted records, malformed metadata, symlinks and an older pending copy contradicting a finished archive block rather than replay work. Queue/archive formats stay v1 and checkpoint stays v12.
+- Queue and archive inspection retain source/event provenance; archive search includes those fields. New goal text rejects invalid UTF-8 and NUL rather than changing the request during JSON encoding. Added strict CLI argument handling and completions for event submission.
+- Added actual concurrent/process/CLI and full goal-loop regressions for read-only retries, capacity, metadata recovery, archive retention, provider blockers and resume into the same run with executed checks. All participating event writers/controllers require 0.38+, and retaining the lookup metadata remains part of duplicate protection. No always-online service, scheduler or exactly-once remote execution is implied.
+
 ## 0.37.0 — 2026-11-03
 
 - Added `scan --check`, `scan --models` and `--agent NAME`: separate installed executables, required CLI controls and fresh verified-zero-price model catalogs in terminal/JSON output. Checks are read-only for project/run settings, require no inference, retain timestamps and fail clearly for explicitly requested unsupported or missing capabilities. Installation alone is no longer labeled a verified-free worker. Dispatch still refreshes pricing independently.

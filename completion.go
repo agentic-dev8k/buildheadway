@@ -41,6 +41,13 @@ func completionTree() completionNode {
 	add("history", completionNode{flags: append(append([]completionFlag{}, project...), f("--search", true), f("--limit", true))})
 	add("tasks", completionNode{flags: inspection[:len(inspection)-2]})
 	add("doctor", completionNode{flags: []completionFlag{f("--json", false)}})
+	agentIDs := []string{}
+	for _, agent := range Registry {
+		if agent.Adapter {
+			agentIDs = append(agentIDs, agent.ID)
+		}
+	}
+	add("about credits", completionNode{flags: []completionFlag{f("--json", false), {"--agent", true, agentIDs}}})
 	add("scan", completionNode{flags: []completionFlag{f("--json", false), f("--check", false), f("--models", false), {"--agent", true, []string{"codex", "claude", "opencode", "pi", "cline", "gemini", "qwen", "goose", "aider", "kilo", "amp", "droid"}}}})
 	add("install", completionNode{flags: []completionFlag{f("--dir", true), f("--no-path", false), f("--launch", false)}})
 	add("update", completionNode{flags: []completionFlag{f("--from", true), f("--version", true)}})
@@ -54,7 +61,7 @@ func completionTree() completionNode {
 	add("logs", completionNode{flags: append(append([]completionFlag{}, project...), f("--run", true), f("--last-check", false), f("--bytes", true), f("--offset", true))})
 	add("workflow skill prompt", completionNode{flags: append(append([]completionFlag{}, project...), f("--preview", false))})
 	queue := completionNode{flags: project, children: map[string]completionNode{}}
-	queue.flags = append(append([]completionFlag{}, project...), f("--search", true), f("--after", true), f("--limit", true))
+	queue.flags = append(append([]completionFlag{}, project...), f("--search", true), f("--after", true), f("--limit", true), f("--source", true), f("--event", true))
 	for _, action := range strings.Fields("list add figureout remove move run next prune archive archives") {
 		queue.children[action] = completionNode{}
 	}
