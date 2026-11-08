@@ -222,11 +222,18 @@ func FormatTeam(team []SeniorAgent) string {
 	}
 	return strings.TrimSpace(out.String())
 }
-func (r *Runner) councilFingerprint(ctx context.Context, review bool) (string, error) {
+func (r *Runner) councilFingerprint(ctx context.Context, review bool) (string, string, error) {
 	snapshot, err := WorkspaceSnapshot(ctx, r.Repo)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
+	fingerprint, err := r.councilFingerprintAt(snapshot, review)
+	return fingerprint, snapshot, err
+}
+
+// Rebase only our retained request metadata onto the already observed source
+// snapshot. A fresh read here could accidentally bless a concurrent file edit.
+func (r *Runner) councilFingerprintAt(snapshot string, review bool) (string, error) {
 	data, err := json.Marshal([]any{r.State.Cycle, review, snapshot, r.State.Steering, r.State.HookResults, r.State.CheckResults, r.State.WorkerResults, r.State.RequiredChecks, r.State.SuggestedChecks, r.State.SuccessCriteria, r.State.Acceptance, r.State.ProjectContext, r.State.ProjectMemory})
 	if err != nil {
 		return "", err
@@ -256,12 +263,28 @@ func (r *Runner) councilPrompt(review bool, step int, round *CouncilRound) strin
 }
 func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) {
 	for {
-		fingerprint, err := r.councilFingerprint(ctx, review)
+		fingerprint, snapshot, err := r.councilFingerprint(ctx, review)
 		if err != nil {
 			return Decision{}, err
 		}
 		round := r.State.Council
-		if round == nil || round.Cycle != r.State.Cycle || round.Review != review || round.Fingerprint != fingerprint {
+		reusable := round != nil && round.Cycle == r.State.Cycle && round.Review == review && round.Fingerprint == fingerprint
+		if round != nil {
+			// Includes partial rounds written by older versions. Reuse decisions
+			// only if their original evidence still matches, but retain their
+			// requested coverage before discarding an obsolete round.
+			if err := r.retainCouncilRequirements(round.Decisions...); err != nil {
+				return Decision{}, err
+			}
+			fingerprint, err = r.councilFingerprintAt(snapshot, review)
+			if err != nil {
+				return Decision{}, err
+			}
+			if reusable {
+				round.Fingerprint = fingerprint
+			}
+		}
+		if !reusable {
 			if round != nil {
 				r.message("harness", "seniors", "recheck", "Evidence changed; previous votes are invalid. Inspect the current workspace.")
 			}
@@ -291,8 +314,11 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 		if err != nil {
 			return Decision{}, err
 		}
-		after, err := r.councilFingerprint(ctx, review)
+		after, afterSnapshot, err := r.councilFingerprint(ctx, review)
 		if err != nil {
+			return Decision{}, err
+		}
+		if err := r.retainCouncilRequirements(answer); err != nil {
 			return Decision{}, err
 		}
 		if after != fingerprint {
@@ -300,12 +326,18 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 			r.message("harness", "seniors", "recheck", "Files changed during council review. Votes discarded; verification must run on the new files.")
 			if review {
 				// Return a non-approval to the ordinary loop, which reruns checks.
-				return Decision{Summary: "Reverify files changed during review.", Checks: answer.Checks, SuccessCriteria: answer.SuccessCriteria}, r.checkpoint()
+				return Decision{Summary: "Reverify files changed during review.", Checks: answer.Checks, SuccessCriteria: answer.SuccessCriteria, Acceptance: answer.Acceptance}, r.checkpoint()
 			}
 			if err := r.checkpoint(); err != nil {
 				return Decision{}, err
 			}
 			continue
+		}
+		// Our own request intake must not look like an external evidence edit
+		// and restart an otherwise unchanged round on every senior response.
+		round.Fingerprint, err = r.councilFingerprintAt(afterSnapshot, review)
+		if err != nil {
+			return Decision{}, err
 		}
 		round.Decisions = append(round.Decisions, answer)
 		round.Next++
