@@ -69,6 +69,14 @@ Completion requires every retained requirement to pass, every required and sugge
 
 Checks and acceptance mappings accumulate across batches and council members; a synthesis step cannot silently omit another senior's coverage request. An unavailable suggested command may be replaced using the existing explicit replacement protocol, and its acceptance mappings follow the replacement. A required check cannot be replaced by the planner.
 
+### Retain council requests through recovery (0.41)
+
+Each completed council step saves its requested checks, success criteria and acceptance mappings as goal obligations before the next senior runs. Requirements expressed only through `acceptance` are retained too. A later senior, restarted round or resumed goal cannot remove them by omission. Older partial council checkpoints recover these requests from saved decisions before old votes are discarded. This applies to completed coordinated council steps; interim consultation messages remain advice until that step returns its decision.
+
+Changing files still invalidates the votes, and checks execute against the current source before fresh approval. Request intake does not dispatch tasks, apply suggested check replacements, change the pinned required checks or convert a proposal into passing evidence. Account, quota, policy, cost, output and MCP/setup blockers stop normally. Exhausted call budgets pause before another dispatch; preserved requirements remain visible with `buildheadway acceptance` and `/acceptance` as unverified or pending until checks actually run.
+
+The existing aggregate acceptance limits still apply: at most 100 mapped requirements and 30 commands per mapped requirement. An over-limit merge blocks with a clear error while keeping the previous valid coverage and checkpoint. Split the goal when it exceeds those bounds; requirements are never silently dropped to fit. The checkpoint format stays v12, and source fingerprints retain their existing generated-directory exclusions and ordinary boundary limits.
+
 ## Pin project requirements
 
 A project's `.buildheadway.json` can define mandatory acceptance checks:
