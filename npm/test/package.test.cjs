@@ -542,6 +542,49 @@ test('the real release package installs, launches, upgrades, and uninstalls with
       else fs.writeFileSync(recoverySettings,previousSettings);
     }
   }
+  {
+    // Recover an older partial council through the real installed launcher.
+    // The exhausted call budget must stop before any agent or check executes.
+    const councilProject = path.join(root, 'council request recovery with spaces');
+    const councilID = 'package-council-coverage';
+    const councilDir = path.join(councilProject, '.forge', 'runs', councilID);
+    fs.mkdirSync(councilDir, { recursive: true });
+    const councilSettings = path.join(home, 'config', 'connection.json');
+    const previousSettings = fs.existsSync(councilSettings) ? fs.readFileSync(councilSettings) : null;
+    const connection = { backend: 'codex', executable: path.join(root, 'must-not-run-council') };
+    fs.writeFileSync(councilSettings, JSON.stringify({version:3,planner:connection,worker:{backend:'opencode',model:'auto'}}));
+    const criterion = 'Keep café requirements after council recovery';
+    const command = 'node retained-council-check.cjs';
+    const vote = {done:false,summary:'Retain executable coverage',tasks:[],checks:[],success_criteria:[],check_replacements:[],acceptance:[{criterion,checks:[command]}],messages:[]};
+    const checkpoint = path.join(councilDir, 'state.json');
+    fs.writeFileSync(checkpoint, JSON.stringify({
+      version:12,run_id:councilID,goal:'Recover accepted verification requests',status:'paused',phase:'planning',cycle:1,next_task:0,tasks:[],planner_calls:1,worker_calls:0,
+      mode:'figureout',access:'full',team:[{name:'lead',connection},{name:'critic',connection:{backend:'claude'}}],worker_connection:{backend:'opencode',model:'auto'},
+      project_config:{version:1,checks:[],check_timeout_seconds:600,planner_timeout_seconds:900,worker_timeout_seconds:1800},
+      council:{cycle:1,review:false,fingerprint:'0'.repeat(64),next:1,decisions:[vote],complete:false,consensus:false,final:vote},
+    }));
+    try {
+      assert.throws(() => taskRead(['resume','--project',councilProject,'--max-planner-calls','1',councilID]), error => error.status !== 0 && /planner call limit/.test(error.stderr));
+      const saved = JSON.parse(fs.readFileSync(checkpoint));
+      assert.equal(saved.version,12);
+      assert.equal(saved.status,'paused');
+      assert.equal(saved.planner_calls,1);
+      assert.equal(saved.worker_calls,0);
+      assert.equal(saved.council.next,0,'old votes must be invalidated');
+      assert.deepEqual(saved.acceptance,[{criterion,checks:[command]}]);
+      assert.deepEqual(saved.success_criteria,[criterion]);
+      assert.ok(saved.suggested_checks.includes(command));
+      assert.equal((saved.check_results || []).length,0,'retained requests are not executed evidence');
+      const bytes = fs.readFileSync(checkpoint);
+      const acceptance = JSON.parse(taskRead(['acceptance','--project',councilProject,'--json',councilID]));
+      assert.equal(acceptance[0].criterion,criterion);
+      assert.equal(acceptance[0].status,'unverified');
+      assert.deepEqual(fs.readFileSync(checkpoint),bytes,'request inspection must preserve saved state');
+    } finally {
+      if(previousSettings===null) fs.unlinkSync(councilSettings);
+      else fs.writeFileSync(councilSettings,previousSettings);
+    }
+  }
   const agentTools = path.join(root, 'agent tools with spaces');
   fs.mkdirSync(agentTools);
   const agentScript = path.join(agentTools, 'scan-fixture.cjs');

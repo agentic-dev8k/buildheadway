@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.41.0 — 2026-11-08
+
+- Senior council coverage requests now become durable suggested checks, success criteria and acceptance mappings after each completed council step. A later budget pause, provider blocker, changed workspace or restarted round retains those obligations even when subsequent seniors omit them. Earlier partial checkpoints recover the requests from their saved decisions; checkpoint v12 is unchanged.
+- Changed evidence still discards votes and requires verification and fresh review. Intake does not execute proposed tasks or check replacements, invent passing results, replace pinned checks or alter model selection, prices, permissions and budgets. Acceptance aggregation validates before mutation, blocking over-limit requests without dropping earlier coverage or poisoning the saved checkpoint.
+- Added planning/review invalidation, pause/resume with actual Node assertions, historical-checkpoint, provider-blocker, replacement-gate, read-only inspection and installed-launcher regressions. Retaining coverage metadata reuses the already observed source snapshot, avoiding self-triggered council restarts or approval of a fresh unverified edit.
+
 ## 0.40.0 — 2026-11-08
 
 - Added offline `about` and `credits`, with JSON and optional `--agent NAME`, plus `/about` and `/credits` in the terminal palette. Claude Code, Codex, OpenCode, Pi, Cline, Gemini CLI and the terminal/MCP libraries receive visible upstream acknowledgments, with links to project contribution history.

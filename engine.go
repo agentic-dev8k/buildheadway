@@ -188,7 +188,13 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 		var cancel context.CancelFunc
 		workCtx, cancel, err = r.runtimeContext(controlCtx)
 		if err == nil {
-			err = r.loop(workCtx)
+			// Refresh project context first so an unchanged saved council has
+			// comparable evidence; import its requests before recovery checks or
+			// steering can discard the round. Runtime/pause limits cover the read.
+			err = r.restoreCouncilRequirements(workCtx)
+			if err == nil {
+				err = r.loop(workCtx)
+			}
 			if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil && r.MaxRuntime > 0 {
 				err = limitError{"runtime budget reached; resume with a higher --max-runtime"}
 			}
