@@ -44,6 +44,7 @@ type Runner struct {
 	PlanOnly            bool
 	lockHeld            bool
 	evidenceRechecks    int
+	councilRechecks     int
 	lastCheckpoint      time.Time
 	resumeID            string
 	Invoke              func(context.Context, Connection, string, string, bool, string) (string, error)
@@ -165,6 +166,7 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 	}
 	defer stopControl()
 	r.evidenceRechecks = 0
+	r.councilRechecks = 0
 	r.State.Status = "running"
 	r.State.Error = ""
 	r.State.Summary = ""

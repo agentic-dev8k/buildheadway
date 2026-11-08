@@ -285,8 +285,14 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 			}
 		}
 		if !reusable {
-			if round != nil {
-				r.message("harness", "seniors", "recheck", "Evidence changed; previous votes are invalid. Inspect the current workspace.")
+			if round != nil && round.Cycle == r.State.Cycle && round.Review == review {
+				if err := r.invalidateCouncilEvidence(ctx, review); err != nil {
+					return Decision{}, err
+				}
+				if review {
+					// Changes between senior calls need fresh executed checks too.
+					return Decision{Summary: "Reverify evidence changed between council calls."}, nil
+				}
 			}
 			round = &CouncilRound{Cycle: r.State.Cycle, Review: review, Fingerprint: fingerprint}
 			r.State.Council = round
@@ -296,6 +302,9 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 			}
 		}
 		if round.Complete {
+			// Do not reset immediately after synthesis: a writer can still edit
+			// the evidence before this final reuse check on the next iteration.
+			r.councilRechecks = 0
 			return round.Final, nil
 		}
 		step := round.Next
@@ -322,14 +331,12 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 			return Decision{}, err
 		}
 		if after != fingerprint {
-			r.State.Council = nil
-			r.message("harness", "seniors", "recheck", "Files changed during council review. Votes discarded; verification must run on the new files.")
+			if err := r.invalidateCouncilEvidence(ctx, review); err != nil {
+				return Decision{}, err
+			}
 			if review {
 				// Return a non-approval to the ordinary loop, which reruns checks.
-				return Decision{Summary: "Reverify files changed during review.", Checks: answer.Checks, SuccessCriteria: answer.SuccessCriteria, Acceptance: answer.Acceptance}, r.checkpoint()
-			}
-			if err := r.checkpoint(); err != nil {
-				return Decision{}, err
+				return Decision{Summary: "Reverify files changed during review.", Checks: answer.Checks, SuccessCriteria: answer.SuccessCriteria, Acceptance: answer.Acceptance}, nil
 			}
 			continue
 		}
@@ -386,6 +393,34 @@ func (r *Runner) askCouncil(ctx context.Context, review bool) (Decision, error) 
 			return Decision{}, err
 		}
 	}
+}
+
+// Limit consecutive invalidations across council calls and verification cycles.
+// The counter is invocation-local: an explicit resume starts a fresh attempt,
+// while all recorded checks, requested coverage and call budgets remain saved.
+func (r *Runner) invalidateCouncilEvidence(ctx context.Context, review bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.councilRechecks++
+	r.State.Council, r.State.Dialogue, r.State.CheckedSnapshot = nil, nil, ""
+	if review {
+		r.State.Phase = "checking"
+	}
+	r.State.RecoveryNote = fmt.Sprintf("Council evidence changed (%d/3). Votes discarded; verification must run on the current files. Stop concurrent writers or move formatting to before_check, then resume.", r.councilRechecks)
+	r.note("council-invalidated", r.State.RecoveryNote)
+	r.message("harness", "seniors", "recheck", r.State.RecoveryNote)
+	r.Emit(Event{Kind: "status", Text: r.State.RecoveryNote})
+	if err := r.checkpoint(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.councilRechecks >= 3 {
+		return limitError{"council evidence keeps changing across three consecutive rounds; stop concurrent writers or move formatting to before_check, then resume"}
+	}
+	return nil
 }
 
 func decisionMessage(d Decision) string {

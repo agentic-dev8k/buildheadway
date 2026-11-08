@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.42.0 — 2026-11-08
+
+- Council planning and review now pause after three consecutive evidence-invalidated rounds instead of repeatedly spending senior calls when project files keep changing. The limit also covers edits between calls and immediately after synthesis. Stable completed rounds reset the consecutive count; explicit resume starts a fresh attempt while preserving cumulative budgets.
+- Changed review evidence returns to executable verification before another senior reviews it. Stale votes, active dialogue and the checked snapshot are discarded; actual check results, partial work and retained coverage requests remain saved. Paused goals explain how to stop concurrent writers or move formatting to `before_check`, then resume. Checkpoint v12 and all model, pricing, blocker and acceptance gates remain unchanged.
+- Added deterministic during-call/between-call/after-synthesis, review/recheck/resume, hard-blocker/cancellation and smaller-budget regressions. The installed launcher also exercises a real local Codex-compatible child process through instability pause and budgeted stable resume; no authenticated model inference is implied.
+
 ## 0.41.0 — 2026-11-08
 
 - Senior council coverage requests now become durable suggested checks, success criteria and acceptance mappings after each completed council step. A later budget pause, provider blocker, changed workspace or restarted round retains those obligations even when subsequent seniors omit them. Earlier partial checkpoints recover the requests from their saved decisions; checkpoint v12 is unchanged.
