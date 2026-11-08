@@ -585,6 +585,70 @@ test('the real release package installs, launches, upgrades, and uninstalls with
       else fs.writeFileSync(councilSettings,previousSettings);
     }
   }
+  {
+    // Exercise the real Codex adapter, child process and installed CLI. Replies
+    // are local fixtures; no account, model inference or worker is available.
+    const stabilityProject = path.join(root, 'unstable council with spaces');
+    const fixtureTools = path.join(root, 'council tools with spaces');
+    fs.mkdirSync(stabilityProject);
+    fs.mkdirSync(fixtureTools);
+    fs.mkdirSync(path.join(stabilityProject, '.forge'));
+    const fixture = path.join(fixtureTools, 'council-fixture.cjs');
+    fs.writeFileSync(fixture, `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+const prompt = fs.readFileSync(0, 'utf8');
+if (!prompt.includes('FIGUREOUT COUNCIL')) process.exit(7);
+const counter = path.join('.forge', 'fixture-calls');
+const calls = fs.existsSync(counter) ? Number(fs.readFileSync(counter, 'utf8')) + 1 : 1;
+fs.writeFileSync(counter, String(calls));
+if (!fs.existsSync(path.join('.forge', 'fixture-stable'))) fs.writeFileSync('changing.txt', String(calls));
+const decision = {done:false,summary:'Inspect the changing files before implementation',tasks:[],checks:[],success_criteria:[],check_replacements:[],messages:[],acceptance:[{criterion:'Preserve council stability coverage',checks:['node stability-check.cjs']}]};
+const text = JSON.stringify(decision);
+const output = args.indexOf('--output-last-message');
+if (output < 0 || !args[output+1]) process.exit(8);
+fs.writeFileSync(args[output+1], text);
+console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text}}));
+`, {mode:0o755});
+    let executable = fixture;
+    if(process.platform==='win32') {
+      executable = path.join(fixtureTools, 'council-fixture.cmd');
+      fs.writeFileSync(executable, '@"' + process.execPath + '" "%~dp0\\council-fixture.cjs" %*\r\n');
+    }
+    fs.writeFileSync(path.join(stabilityProject, 'stability-check.cjs'), "const assert = require('node:assert/strict'); const fs = require('node:fs'); assert.ok(fs.statSync('changing.txt').isFile());\n");
+    const connectionFile = path.join(home, 'config', 'connection.json');
+    const previous = fs.existsSync(connectionFile) ? fs.readFileSync(connectionFile) : null;
+    fs.writeFileSync(connectionFile, JSON.stringify({version:3,planner:{backend:'codex',model:'fixture-only',executable},worker:{backend:'opencode',model:'auto'}}));
+    try {
+      assert.throws(() => taskRead(['figureout','--project',stabilityProject,'--max-planner-calls','9','Verify council recovery']), error => error.status !== 0 && /council evidence keeps changing/.test(error.stderr));
+      const id = JSON.parse(fs.readFileSync(path.join(stabilityProject,'.forge/latest.json'))).run_id;
+      const checkpoint = path.join(stabilityProject,'.forge/runs',id,'state.json');
+      const paused = JSON.parse(fs.readFileSync(checkpoint));
+      assert.equal(paused.status,'paused');
+      assert.equal(paused.phase,'planning');
+      assert.equal(paused.planner_calls,3);
+      assert.equal(paused.worker_calls,0);
+      assert.equal(paused.council,undefined);
+      assert.equal(paused.checked_snapshot || '','');
+      assert.equal((paused.check_results || []).length,0);
+      assert.ok(paused.suggested_checks.includes('node stability-check.cjs'));
+      assert.deepEqual(paused.acceptance,[{criterion:'Preserve council stability coverage',checks:['node stability-check.cjs']}]);
+      assert.match(paused.recovery_note,/Votes discarded/);
+      assert.equal(fs.readFileSync(path.join(stabilityProject,'.forge/fixture-calls'),'utf8'),'3');
+      fs.writeFileSync(path.join(stabilityProject,'.forge/fixture-stable'),'resume explicitly');
+      assert.throws(() => taskRead(['resume','--project',stabilityProject,'--max-planner-calls','4',id]), error => error.status !== 0 && /planner call limit/.test(error.stderr));
+      const resumed = JSON.parse(fs.readFileSync(checkpoint));
+      assert.equal(resumed.planner_calls,4,'resume must retain cumulative call usage');
+      assert.equal(resumed.worker_calls,0);
+      assert.equal(resumed.council.next,1,'stable resume must preserve its new proposal before the smaller call budget pauses');
+      assert.match(resumed.error,/planner call limit/);
+      assert.equal(fs.readFileSync(path.join(stabilityProject,'.forge/fixture-calls'),'utf8'),'4');
+    } finally {
+      if(previous===null) fs.unlinkSync(connectionFile);
+      else fs.writeFileSync(connectionFile,previous);
+    }
+  }
   const agentTools = path.join(root, 'agent tools with spaces');
   fs.mkdirSync(agentTools);
   const agentScript = path.join(agentTools, 'scan-fixture.cjs');

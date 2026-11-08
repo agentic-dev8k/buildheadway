@@ -18,6 +18,14 @@ If a failed worker changed files in the source snapshot, BuildHeadway stops that
 
 Use `buildheadway routing [RUN_ID]`, `buildheadway routing --json`, or `/routing` to inspect saved observations and recent decisions without calling a model or refreshing a catalog. `buildheadway status` shows an active wait, and exported run reports include routing history. A usable response can still contain an incorrect implementation: acceptance checks, fresh source verification and unanimous senior review remain the completion gates.
 
+## Council evidence stability (0.42)
+
+If project evidence changes during a senior call, between council calls or immediately after synthesis, its votes are discarded. Planning starts a new round; review returns to executable checks before another senior sees the changed evidence. Completed senior coverage requests remain obligations, and recorded check results remain actual execution records. The checked snapshot and pending approval are cleared.
+
+After three consecutive invalidated rounds in one invocation, the goal pauses with a `council evidence keeps changing` diagnosis. Stop concurrent writers, or move a formatting hook to `before_check`, then use `buildheadway resume [RUN_ID]` or `/resume`. A stable completed council round resets the consecutive count; explicit resume starts a fresh attempt while retaining saved planner/worker usage, runtime and configured budgets. A smaller call/runtime limit or an independent provider/access blocker can stop the run earlier. The counter is not a new saved field; checkpoint v12 is unchanged.
+
+This guard bounds repeated invalidation, not model execution time or unrelated task cycles. It observes the existing workspace snapshot boundaries and does not isolate a project from malicious concurrent writers. Workers still need fresh zero-price authorization; completion still requires executed meaningful passing checks, acceptance coverage, unchanged checked source and unanimous senior review.
+
 ## Durable pause control (0.21)
 
 `buildheadway pause [RUN_ID]` lets another terminal request a pause without acquiring the running goal's project lock or rewriting its checkpoint. The request is pinned to one run. Duplicate requests coalesce; an explicit start/resume acknowledges the previous request. A paused queued goal keeps its identity and holds later goals until the user resumes the queue.
