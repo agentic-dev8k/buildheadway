@@ -10,6 +10,30 @@ import (
 
 var agentLogFields = regexp.MustCompile(`(?:^|\s)([A-Za-z_.]+)=("(?:[^"\\]|\\.)*"|[^\s]+)`)
 
+// Read authoritative step receipts, not model/tool text. Preserve decimal
+// spelling: float64 can round tiny positive reported charges to zero.
+func openCodeReportedCharge(line string) bool {
+	var event struct {
+		Type string `json:"type"`
+		Part struct {
+			Cost json.RawMessage `json:"cost"`
+		} `json:"part"`
+	}
+	if json.Unmarshal([]byte(Clean(line)), &event) != nil || event.Type != "step_finish" {
+		return false
+	}
+	cost := strings.TrimSpace(string(event.Part.Cost))
+	if cost == "" || cost[0] < '0' || cost[0] > '9' {
+		return false
+	}
+	// JSON syntax is already validated. An exponent cannot change whether a
+	// nonnegative decimal mantissa is exactly zero.
+	if i := strings.IndexAny(cost, "eE"); i >= 0 {
+		cost = cost[:i]
+	}
+	return strings.ContainsAny(cost, "123456789")
+}
+
 // Only authoritative provider events may interrupt a process. Text returned by
 // a model/tool is not a provider event, even if it mentions a usage limit.
 func agentStreamBlocker(backend, model, line string) error {

@@ -698,7 +698,11 @@ else if (args.includes('--help')) console.log('--pure --format --model --file --
 else if (args.includes('models') && args.includes('--refresh') && args.includes('--pure')) {
   console.log('opencode/verified');
   console.log(JSON.stringify({cost:{input:0,output:0,cache:{read:0,write:0}},capabilities:{toolcall:true}}));
-} else process.exit(4); // Any inference/authentication would fail this check.
+} else if (args.includes('run') && process.env.BUILDHEADWAY_TEST_COST_CAPTURE) {
+  require('node:fs').appendFileSync(process.env.BUILDHEADWAY_TEST_COST_CAPTURE, JSON.stringify(args) + '\\n');
+  process.stdout.write(JSON.stringify({type:'step_finish',part:{cost:0.125}}) + '\\n');
+  setTimeout(() => process.exit(0),30000);
+} else process.exit(4); // Unexpected inference/authentication fails this fixture.
 `, { mode: 0o755 });
   if (process.platform === 'win32') {
     fs.writeFileSync(path.join(agentTools, 'opencode.cmd'), '@"' + process.execPath + '" "%~dp0\\scan-fixture.cjs" %*\r\n');
@@ -724,6 +728,37 @@ else if (args.includes('models') && args.includes('--refresh') && args.includes(
     assert.throws(() => scanRead(args), error => error.status !== 0);
   }
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeScan);
+  // Exercise the delivered launcher and an actual hanging child, not a mock
+  // invocation return: a received cost blocks before the runtime deadline.
+  {
+    const costProject = path.join(root,'streaming cost project');
+    fs.mkdirSync(costProject);
+    fs.writeFileSync(path.join(costProject,'.buildheadway.json'),JSON.stringify({version:1,checks:['node --test'],max_runtime_seconds:8}));
+    const capture = path.join(root,'cost calls.jsonl');
+    const connectionFile = path.join(home,'config','connection.json');
+    const previous = fs.existsSync(connectionFile) ? fs.readFileSync(connectionFile) : null;
+    const connection = {backend:'opencode',model:'auto',executable:path.join(agentTools,process.platform === 'win32' ? 'opencode.cmd' : 'opencode')};
+    fs.writeFileSync(connectionFile,JSON.stringify({version:2,planner:connection,worker:connection}));
+    const costOptions = {...scanOptions,cwd:costProject,env:{...scanOptions.env,BUILDHEADWAY_TEST_COST_CAPTURE:capture}};
+    const costRead = args => execFileSync(process.execPath,[path.join(installed,'npm/buildheadway.cjs'),...args],costOptions);
+    try {
+      assert.throws(() => costRead(['figureout','--access','workspace','--max-runtime','8s','--max-planner-calls','4','Inspect this project and propose a repair']),error => error.status !== 0 && /nonzero cost/.test(error.stderr));
+      const state = JSON.parse(costRead(['status','--json']));
+      assert.equal(state.status,'blocked');
+      assert.equal(state.planner_calls,1);
+      assert.equal(state.worker_calls,0);
+      assert.equal(state.model_health.length,1);
+      assert.equal(state.model_health[0].failure_kind,'cost');
+      assert.equal(state.model_health[0].attempts,1);
+      assert.equal(fs.readFileSync(capture,'utf8').trim().split('\n').length,1);
+      const checkpoint = path.join(costProject,'.forge','runs',state.run_id,'state.json');
+      const bytes = fs.readFileSync(checkpoint);
+      assert.equal(JSON.parse(costRead(['routing','--json'])).models[0].status,'last_call_blocked');
+      assert.deepEqual(fs.readFileSync(checkpoint),bytes);
+    } finally {
+      if(previous === null)fs.unlinkSync(connectionFile);else fs.writeFileSync(connectionFile,previous);
+    }
+  }
   assert.throws(() => buildheadway(['--unknown-option']), error => error.status === 2, 'native exit codes must reach the terminal');
   assert.match(buildheadway(['uninstall']), /npm uninstall -g buildheadway/);
   assert.ok(fs.existsSync(path.join(installed, 'bin', binaryName())), 'native self-uninstall must not corrupt an npm package');

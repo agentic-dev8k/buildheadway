@@ -56,6 +56,14 @@ Trusted scripts can submit queued goals with source/event keys. Retries preserve
 
 New queued runs have stable addresses derived from their queue IDs. An interrupted queue-reference publication reconnects to the saved checkpoint without creating another run; completed checkpoints are not re-executed. Saved explicit IDs remain compatible. Goal text, mode and identities must agree before dispatch and progress synchronization. Ambiguous reservations, missing/corrupt checkpoints and symlinks block instead of replacing saved work. The normal explicit start/resume, budgets, provider blockers, source verification and senior-review gates still apply. See [queue claim recovery](queue-delivery.md#recovering-an-interrupted-queue-claim-039) for supported recovery boundaries and backup requirements.
 
+## Reported cost interruption (0.44)
+
+Verified-free OpenCode workers, automatically free seniors and free peer consultations cancel their current child invocation when a positive `step_finish.part.cost` receipt arrives. The receipt stays in the full log, and the goal records a hard cost blocker. It does not rotate models or accept a later completion report. A received charge keeps priority over concurrent cancellation. Explicitly selected paid seniors keep their usual account allowance.
+
+Receipt amounts are read as exact decimals; even `1e-999` is nonzero. Quoted examples, model text, tool output and other event types do not establish a structured charge. Final captured-output checks remain. When oversized output and a charge are both received, both typed blockers survive. Authentication, quota, policy, output-limit and MCP/setup blockers retain their existing behavior.
+
+The guard reacts to reported costs: it cannot undo a charge, enforce provider billing or prove unreported usage free. Fresh zero-price catalog checks still run before each free dispatch/retry. After resolving the cause, explicit resume inspects partial edits, executes current acceptance and obtains fresh senior approval. Costs are never passing evidence. Checkpoint v12 and cumulative budgets are unchanged. See [actual agent access checks](agents.md#what-was-actually-tested).
+
 ## Acceptance evidence
 
 Version 0.11 makes acceptance coverage an executable gate for all new and resumed goals. Each retained success criterion must have at least one meaningful check. A senior can propose the mapping in its structured decision:
