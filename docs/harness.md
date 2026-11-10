@@ -26,6 +26,14 @@ After three consecutive invalidated rounds in one invocation, the goal pauses wi
 
 This guard bounds repeated invalidation, not model execution time or unrelated task cycles. It observes the existing workspace snapshot boundaries and does not isolate a project from malicious concurrent writers. Workers still need fresh zero-price authorization; completion still requires executed meaningful passing checks, acceptance coverage, unchanged checked source and unanimous senior review.
 
+## Source-consistent team advice (0.43)
+
+Routed consultations check the existing project source snapshot before routing steps, after each usable advice call and before delivering completed answers. If files change, earlier active replies and nested routes are discarded; the original questions are re-asked against current files. The saved discussion remains historical evidence, with an explicit invalidation notice. An answer returned while its evidence changed is not published as active advice or used to create further nested requests.
+
+Completed advice calls, including discarded replies, remain counted toward the existing eight-reply advice allowance for that decision or worker assignment, even if the source changes or a saved discussion resumes. Failed attempts still count in cumulative planner usage as before. A different decision/assignment has its own allowance. Three evidence invalidations within one routing pass pause the goal: stop concurrent writers and use `buildheadway resume [RUN_ID]` or `/resume`. The returned worker handoff, partial report, pinned connection and cumulative planner/worker/runtime usage remain saved. A stable worker consultation resumes before further implementation; an obsolete senior council starts a fresh plan under its existing invalidation rules. Smaller configured budgets and independent provider/access blockers can stop earlier.
+
+These reads add file-fingerprinting work at routing boundaries. They do not isolate processes, observe changes in snapshot-excluded paths or detect edits completely reverted between boundaries. Advice remains evidence, never a passing check or a completion vote. Executed meaningful acceptance, unchanged checked source and fresh unanimous senior approval remain required; checkpoint v12 is unchanged.
+
 ## Durable pause control (0.21)
 
 `buildheadway pause [RUN_ID]` lets another terminal request a pause without acquiring the running goal's project lock or rewriting its checkpoint. The request is pinned to one run. Duplicate requests coalesce; an explicit start/resume acknowledges the previous request. A paused queued goal keeps its identity and holds later goals until the user resumes the queue.
