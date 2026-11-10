@@ -38,15 +38,18 @@ func TestAdaptersRejectOversizedOutputBeforeCompletionOrCostApproval(t *testing.
 		os.MkdirAll(r.Dir, 0700)
 		t.Setenv("BUILDHEADWAY_TEST_ADAPTER_CAPTURE", filepath.Join(t.TempDir(), "capture"))
 		payload := filepath.Join(t.TempDir(), "payload")
-		// A charge at the start would disappear from an ordinary tail capture.
-		data := "{\"type\":\"step_finish\",\"part\":{\"cost\":1}}\n" + strings.Repeat(" ", int(processOutputLimit)) + "\n" + decisionJSON(true, nil, nil)
+		// An earlier receipt now stops the producer before its planned tail.
+		// Once oversized output and a charge are both actually received, both
+		// typed blockers must survive cancellation and final capture.
+		data := strings.Repeat(" ", int(processOutputLimit)) + "\n{\"type\":\"step_finish\",\"part\":{\"cost\":1}}\n" + decisionJSON(true, nil, nil)
 		os.WriteFile(payload, []byte(data), 0600)
 		t.Setenv("BUILDHEADWAY_TEST_ADAPTER_OUTPUT_FILE", payload)
 		c := Connection{Backend: "opencode", Model: "opencode/free", Executable: binary, RequireFree: true}
 		_, err := r.invokeCLI(context.Background(), c, "Inspect safely", "large-output", planner, "opencode/free")
 		var oversized outputLimitError
-		if !errors.As(err, &oversized) {
-			t.Fatalf("truncated response was accepted: %v", err)
+		var charged costError
+		if !errors.As(err, &oversized) || !errors.As(err, &charged) {
+			t.Fatalf("received output/cost blockers were lost: %v", err)
 		}
 	}
 }

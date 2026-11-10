@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.0 — 2026-11-10
+
+- Free OpenCode workers and automatically verified-free senior/consultation calls now stop on positive structured step-cost receipts while the child is still running. Received charges keep hard-blocker priority over cancellation and remain in full logs; no model fallback evades the blocker. Explicit paid senior choices retain their ordinary allowance.
+- Receipt parsing preserves exact decimal spelling, including positive amounts previously rounded to zero by float64. Quoted examples, model text and tool output are not cost receipts. Final output checks, fresh pricing, budgets, executed acceptance and senior review remain enforced; checkpoint v12 is unchanged.
+- Added actual subprocess, installed-launcher, cancellation, output-limit coexistence, no-fallback and partial-edit/resume regressions. Downloaded official OpenCode 1.19.5 and 2.2.6: the supported adapter found 12 fresh zero-price entries; the incompatible generation was rejected. A bounded real repair was blocked by Free usage limit reached after one senior call and no edits. No successful live implementation is claimed.
+
 ## 0.43.0 — 2026-11-10
 
 - Routed team consultations now recheck source evidence around advice calls, between recipients and before returning completed answers. Changes discard active answers and nested routes, then re-ask the original questions against the current workspace. Historical discussion stays intact; invalidated in-flight replies cannot become active worker advice or new nested requests. Changed evidence immediately clears the checked-source snapshot while preserving actual check outcomes.

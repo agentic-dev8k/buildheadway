@@ -188,6 +188,27 @@ func openCodeRunArgs(executable, model, promptPath, repo string, planner, suppor
 	}
 	return append(args, "--file", promptPath)
 }
+func (r *Runner) requiresZeroCost(connection Connection, label string, planner bool) bool {
+	if !planner {
+		return true
+	}
+	if connection.Backend != "opencode" {
+		return false
+	}
+	if connection.RequireFree {
+		return true
+	}
+	if r.State.Mode == "figureout" {
+		for _, member := range r.State.Team {
+			if strings.Contains(label, "-"+member.Name+"-") && member.Connection.Backend == "opencode" && (member.Connection.Model == "auto" || member.Connection.Model == "") {
+				return true
+			}
+		}
+		return false
+	}
+	return r.Settings.Planner.Backend == "opencode" && (r.Settings.Planner.Model == "auto" || r.Settings.Planner.Model == "")
+}
+
 func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, label string, planner bool, model string) (string, error) {
 	if connection.Backend == "demo" {
 		return r.invokeDemo(ctx, prompt, planner)
@@ -352,9 +373,14 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	defer stopProcess()
 	var blockerMu sync.Mutex
 	var providerBlocker error
+	zeroCost := r.requiresZeroCost(connection, label, planner)
 	observe := func(line string) {
 		if connection.Backend == "opencode" || connection.Backend == "cline" {
-			if err := agentStreamBlocker(connection.Backend, model, line); err != nil {
+			err := agentStreamBlocker(connection.Backend, model, line)
+			if err == nil && zeroCost && connection.Backend == "opencode" && openCodeReportedCharge(line) {
+				err = costError{}
+			}
+			if err != nil {
 				blockerMu.Lock()
 				if providerBlocker == nil {
 					providerBlocker = err
@@ -408,24 +434,9 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	if strings.TrimSpace(raw) == "" {
 		return "", errors.New("the agent returned no result")
 	}
-	freePlanner := r.Settings.Planner.Backend == "opencode" && (r.Settings.Planner.Model == "auto" || r.Settings.Planner.Model == "")
-	if r.State.Mode == "figureout" {
-		freePlanner = false
-		for _, member := range r.State.Team {
-			if strings.Contains(label, "-"+member.Name+"-") && member.Connection.Backend == "opencode" && (member.Connection.Model == "auto" || member.Connection.Model == "") {
-				freePlanner = true
-			}
-		}
-	}
-	if !planner || (connection.Backend == "opencode" && (freePlanner || connection.RequireFree)) {
+	if zeroCost {
 		for _, line := range strings.Split(raw, "\n") {
-			var event struct {
-				Type string `json:"type"`
-				Part struct {
-					Cost float64 `json:"cost"`
-				} `json:"part"`
-			}
-			if json.Unmarshal([]byte(line), &event) == nil && event.Type == "step_finish" && event.Part.Cost > 0 {
+			if openCodeReportedCharge(line) {
 				return "", costError{}
 			}
 		}
