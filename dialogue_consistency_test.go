@@ -252,3 +252,56 @@ func TestDialogueInstabilityKeepsSmallerCallBudgetAndPauseBoundaryCancellation(t
 		})
 	}
 }
+
+func TestChangedReviewConsultationClearsCheckedSnapshotBeforePausing(t *testing.T) {
+	r, workers := councilFixture(t)
+	*workers = 1 // The first worker invocation writes the passing fixture output.
+	base := r.Invoke
+	advice := 0
+	r.Invoke = func(ctx context.Context, c Connection, prompt, label string, planner bool, model string) (string, error) {
+		if strings.HasPrefix(label, "dialogue-") {
+			advice++
+			writeFixture(t, filepath.Join(r.Repo, "changed-review.txt"), fmt.Sprint(advice))
+			return discussionDecision("Advice based on files that just changed"), nil
+		}
+		if strings.Contains(label, "-review-") {
+			return discussionDecision("Consult before approving", TeamRequest{"critic", "question", "Inspect the current verification evidence"}), nil
+		}
+		return base(ctx, c, prompt, label, planner, model)
+	}
+	err := r.Run(context.Background())
+	var limit limitError
+	if !errors.As(err, &limit) || !strings.Contains(err.Error(), "consultation evidence") || r.State.Status != "paused" || advice != 3 {
+		t.Fatal("expected a bounded paused review consultation", err)
+	}
+	if r.State.CheckedSnapshot != "" {
+		t.Fatal("changed review consultation retained an obsolete checked-source snapshot")
+	}
+	if len(r.State.CheckResults) != 1 || !r.State.CheckResults[0].Passed() || r.State.WorkerCalls != 1 || CompletionAllowed(r.State, Decision{Done: true}) {
+		t.Fatal("invalidation replaced real check outcomes, repeated work or allowed completion")
+	}
+	saved, _, err := LoadRun(r.Repo, r.State.RunID)
+	if err != nil || saved.CheckedSnapshot != "" || len(saved.CheckResults) != 1 || !saved.CheckResults[0].Passed() {
+		t.Fatal("paused checkpoint lost the stale-snapshot invalidation or actual checks", err)
+	}
+	resumed, err := ResumeRunner(r.Paths, r.Settings, r.Repo, r.State.RunID, noEmit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks, reviews := 0, 0
+	resumed.Emit = func(event Event) {
+		if event.Kind == "check" {
+			checks++
+		}
+	}
+	resumed.Invoke = func(_ context.Context, _ Connection, _ string, label string, planner bool, _ string) (string, error) {
+		if !planner || !strings.Contains(label, "-review-") || checks != 1 || resumed.State.CheckedSnapshot == "" {
+			t.Fatal("resume skipped fresh verification or repeated implementation")
+		}
+		reviews++
+		return decisionJSON(true, nil, nil), nil
+	}
+	if err := resumed.Run(context.Background()); err != nil || resumed.State.Status != "complete" || reviews != 3 || resumed.State.WorkerCalls != 1 {
+		t.Fatal("stable review recovery did not require current checks and fresh unanimous approval", err)
+	}
+}

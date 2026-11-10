@@ -223,6 +223,7 @@ func (r *Runner) routeDialogue(ctx context.Context) error {
 		root.Next = 0
 		d.Frames, d.Replies = []DialogueFrame{root}, nil
 		d.Snapshot, d.Complete, d.Exhausted = snapshot, false, false
+		r.State.CheckedSnapshot = ""
 		invalidations++
 		text := fmt.Sprintf("Consultation evidence changed (%d/3). Previous active answers discarded; rechecking questions against current files. Stop concurrent writers, then resume if changes continue.", invalidations)
 		r.State.RecoveryNote = text

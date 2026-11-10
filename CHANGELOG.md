@@ -2,7 +2,7 @@
 
 ## 0.43.0 — 2026-11-10
 
-- Routed team consultations now recheck source evidence around advice calls, between recipients and before returning completed answers. Changes discard active answers and nested routes, then re-ask the original questions against the current workspace. Historical discussion stays intact; invalidated in-flight replies cannot become active worker advice or new nested requests.
+- Routed team consultations now recheck source evidence around advice calls, between recipients and before returning completed answers. Changes discard active answers and nested routes, then re-ask the original questions against the current workspace. Historical discussion stays intact; invalidated in-flight replies cannot become active worker advice or new nested requests. Changed evidence immediately clears the checked-source snapshot while preserving actual check outcomes.
 - Source changes no longer reset completed advice calls already spent on the same decision or assignment, including saved discussions and new questions from that owner. Three evidence invalidations in one routing pass pause with a recoverable handoff; stable resume retains partial work, pinned models and cumulative budgets. Provider/access blockers and caller cancellation keep precedence. Checkpoint v12 is unchanged.
 - Added real-file, reply-delivery, turn-budget, worker pause/resume, read-only recovery and blocker/cancellation regressions. Installed CLI coverage uses a real local Codex-compatible process to exercise consultation instability and budgeted recovery; simulated replies do not imply authenticated model inference.
 
