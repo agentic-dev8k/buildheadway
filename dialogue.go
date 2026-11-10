@@ -145,7 +145,13 @@ func (r *Runner) beginDialogue(ctx context.Context, owner, sender string, reques
 		return err
 	}
 	if d == nil || d.Owner != owner || d.Snapshot != snapshot {
-		d = &DialogueState{Owner: owner, Source: sender, Cycle: r.State.Cycle, Snapshot: snapshot, Frames: []DialogueFrame{{From: sender, To: sender}}}
+		turns := 0
+		if d != nil && d.Owner == owner {
+			// Changed files invalidate answers, not the calls already spent on
+			// this decision/assignment. A different owner starts a new budget.
+			turns = d.Turns
+		}
+		d = &DialogueState{Owner: owner, Source: sender, Cycle: r.State.Cycle, Snapshot: snapshot, Turns: turns, Frames: []DialogueFrame{{From: sender, To: sender}}}
 		r.State.Dialogue = d
 	}
 	if d.Turns >= maxDialogueTurns {
@@ -204,27 +210,50 @@ func (r *Runner) routeDialogue(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
-	snapshot, err := WorkspaceSnapshot(ctx, r.Repo)
-	if err != nil {
-		return err
-	}
-	if snapshot != d.Snapshot {
+	invalidations := 0
+	refresh := func() (bool, error) {
+		snapshot, err := WorkspaceSnapshot(ctx, r.Repo)
+		if err != nil {
+			return false, err
+		}
+		if snapshot == d.Snapshot {
+			return false, nil
+		}
 		root := d.Frames[0]
 		root.Next = 0
-		d.Frames = []DialogueFrame{root}
-		d.Replies = nil
-		d.Turns = 0
-		d.Snapshot = snapshot
-		d.Complete = false
-		d.Exhausted = false
-		r.recordMessage("harness", d.Source, "recheck", "Files changed while the discussion was saved. Rechecking the questions against the current project.", 0)
+		d.Frames, d.Replies = []DialogueFrame{root}, nil
+		d.Snapshot, d.Complete, d.Exhausted = snapshot, false, false
+		r.State.CheckedSnapshot = ""
+		invalidations++
+		text := fmt.Sprintf("Consultation evidence changed (%d/3). Previous active answers discarded; rechecking questions against current files. Stop concurrent writers, then resume if changes continue.", invalidations)
+		r.State.RecoveryNote = text
+		r.note("dialogue-invalidated", text)
+		r.recordMessage("harness", d.Source, "recheck", text, 0)
+		r.Emit(Event{Kind: "status", Text: text})
 		if err := r.checkpoint(); err != nil {
-			return err
+			return true, err
 		}
+		if err := ctx.Err(); err != nil {
+			return true, err
+		}
+		if invalidations >= 3 {
+			return true, limitError{"consultation evidence keeps changing across three routing rounds; stop concurrent writers, then resume"}
+		}
+		return true, nil
 	}
-	for !d.Complete {
+	for {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if changed, err := refresh(); err != nil {
+			return err
+		} else if changed {
+			continue
+		}
+		// Recheck completed cached advice too, including edits made while
+		// recording the last answer, before handing control to its recipient.
+		if d.Complete {
+			return nil
 		}
 		index := len(d.Frames) - 1
 		frame := &d.Frames[index]
@@ -246,6 +275,13 @@ func (r *Runner) routeDialogue(ctx context.Context) error {
 				return err
 			}
 			d.Turns++
+			if changed, err := refresh(); err != nil {
+				return err
+			} else if changed {
+				// Do not publish the returned answer or nested requests against
+				// evidence that changed while the advice call was executing.
+				continue
+			}
 			if len(answer.Messages) == 0 {
 				r.finishDialogueFrame(decisionMessage(answer), false)
 			} else {
@@ -270,7 +306,6 @@ func (r *Runner) routeDialogue(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
 }
 
 func (r *Runner) advicePrompt(frame DialogueFrame) string {
