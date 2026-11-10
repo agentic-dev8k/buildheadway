@@ -599,12 +599,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 const prompt = fs.readFileSync(0, 'utf8');
-if (!prompt.includes('FIGUREOUT COUNCIL')) process.exit(7);
+const advice = prompt.includes('INTERNAL TEAM CONSULTATION');
+if (!prompt.includes('FIGUREOUT COUNCIL') && !advice) process.exit(7);
 const counter = path.join('.forge', 'fixture-calls');
 const calls = fs.existsSync(counter) ? Number(fs.readFileSync(counter, 'utf8')) + 1 : 1;
 fs.writeFileSync(counter, String(calls));
-if (!fs.existsSync(path.join('.forge', 'fixture-stable'))) fs.writeFileSync('changing.txt', String(calls));
+const dialogue = fs.existsSync(path.join('.forge', 'fixture-dialogue'));
+const stable = fs.existsSync(path.join('.forge', 'fixture-stable'));
+if (!stable && (!dialogue || advice)) fs.writeFileSync('changing.txt', String(calls));
 const decision = {done:false,summary:'Inspect the changing files before implementation',tasks:[],checks:[],success_criteria:[],check_replacements:[],messages:[],acceptance:[{criterion:'Preserve council stability coverage',checks:['node stability-check.cjs']}]};
+if (dialogue) {
+  decision.summary = advice ? (stable ? 'CURRENT_CONSULTATION_REPLY' : 'OBSOLETE_CONSULTATION_REPLY') : 'Consult the reviewer against current source';
+  decision.messages = advice ? [] : [{to:'reviewer',kind:'question',text:'Inspect the implementation against the current files'}];
+}
 const text = JSON.stringify(decision);
 const output = args.indexOf('--output-last-message');
 if (output < 0 || !args[output+1]) process.exit(8);
@@ -644,6 +651,38 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
       assert.equal(resumed.council.next,1,'stable resume must preserve its new proposal before the smaller call budget pauses');
       assert.match(resumed.error,/planner call limit/);
       assert.equal(fs.readFileSync(path.join(stabilityProject,'.forge/fixture-calls'),'utf8'),'4');
+      const dialogueProject = path.join(root, 'changing consultation with spaces');
+      fs.mkdirSync(path.join(dialogueProject,'.forge'),{recursive:true});
+      fs.writeFileSync(path.join(dialogueProject,'.forge/fixture-dialogue'),'exercise routed advice');
+      assert.throws(() => taskRead(['figureout','--project',dialogueProject,'--max-planner-calls','12','Inspect source before making a plan']), error => error.status !== 0 && /consultation evidence keeps changing/.test(error.stderr));
+      const dialogueID = JSON.parse(fs.readFileSync(path.join(dialogueProject,'.forge/latest.json'))).run_id;
+      const dialogueCheckpoint = path.join(dialogueProject,'.forge/runs',dialogueID,'state.json');
+      const interruptedAdvice = JSON.parse(fs.readFileSync(dialogueCheckpoint));
+      assert.equal(interruptedAdvice.version,12);
+      assert.equal(interruptedAdvice.status,'paused');
+      assert.equal(interruptedAdvice.planner_calls,4,'one initiator plus three invalidated advice calls');
+      assert.equal(interruptedAdvice.worker_calls,0);
+      assert.equal(interruptedAdvice.dialogue.turns,3,'discarded answers still spend advice calls');
+      assert.equal((interruptedAdvice.dialogue.replies || []).length,0);
+      assert.equal(interruptedAdvice.council.next,0,'an unfinished consultation is not a council vote');
+      assert.match(interruptedAdvice.recovery_note,/Previous active answers discarded/);
+      fs.writeFileSync(path.join(dialogueProject,'.forge/fixture-stable'),'source is now stable');
+      // The obsolete outer council starts a fresh plan. Cumulative usage still
+      // leaves only one call, so it cannot dispatch the new routed question.
+      assert.throws(() => taskRead(['resume','--project',dialogueProject,'--max-planner-calls','5',dialogueID]), error => error.status !== 0 && /planner call limit/.test(error.stderr));
+      const newPlan = JSON.parse(fs.readFileSync(dialogueCheckpoint));
+      assert.equal(newPlan.planner_calls,5);
+      assert.equal(newPlan.worker_calls,0);
+      assert.equal(newPlan.dialogue.turns,0);
+      assert.throws(() => taskRead(['resume','--project',dialogueProject,'--max-planner-calls','6',dialogueID]), error => error.status !== 0 && /planner call limit/.test(error.stderr));
+      const freshAdvice = JSON.parse(fs.readFileSync(dialogueCheckpoint));
+      assert.equal(freshAdvice.planner_calls,6);
+      assert.equal(freshAdvice.worker_calls,0);
+      assert.equal(freshAdvice.dialogue.turns,1);
+      assert.equal(freshAdvice.dialogue.complete,true);
+      assert.match(JSON.stringify(freshAdvice.dialogue.replies),/CURRENT_CONSULTATION_REPLY/);
+      assert.doesNotMatch(JSON.stringify(freshAdvice.dialogue.replies),/OBSOLETE_CONSULTATION_REPLY/);
+      assert.equal(fs.readFileSync(path.join(dialogueProject,'.forge/fixture-calls'),'utf8'),'6');
     } finally {
       if(previous===null) fs.unlinkSync(connectionFile);
       else fs.writeFileSync(connectionFile,previous);
