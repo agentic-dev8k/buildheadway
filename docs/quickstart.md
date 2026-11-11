@@ -15,10 +15,10 @@ Choose the environment that contains your project and development tools. After i
 
 ## 1. Install and verify
 
-Download `buildheadway-0.44.0.tgz`. With Node.js 20+ and npm, open a terminal in the download folder and run:
+Download `buildheadway-0.45.0.tgz`. With Node.js 20+ and npm, open a terminal in the download folder and run:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.44.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.45.0.tgz
 buildheadway --version
 ```
 
@@ -42,6 +42,8 @@ buildheadway --project "path to my project"
 ## 3. Connect your agents
 
 On first launch, BuildHeadway discovers installed coding agents and lets you choose a senior connection. Follow that agent's own sign-in when needed. Use `/connect` to change or repair a connection and `/login` to open the selected agent's sign-in.
+
+Missing or incompatible packages are shown for approval before private setup. You can skip installation and watch free-model offers instead. That choice persists across later automatic setup; `/connect` can review it again. See [setup and discovery](onboarding.md) for optional X search, request budgets and the distinction between catalog prices and actual free account quota.
 
 You can attach installed senior agents from the terminal too:
 

@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.44.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.45.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -422,3 +422,7 @@ Use an ID returned by pruning to inspect a finished record. `/queue prune` and `
 ### Browse finished queue goals
 
 Use `buildheadway queue archives` or `/queue archives` to discover archived IDs after pruning. Search with `buildheadway queue --search "words" archives` or `/queue archives words`. For automation, add `--json` before `archives`; `--limit` controls page size and `--after` continues from the returned ID. See the [harness guide](harness.md#find-archived-goals-026) for limits and read-only behavior.
+
+## Setup and free-offer discovery
+
+Use `/setup` to inspect agents and review setup, or `/connect` to choose a senior. `/freebies check` refreshes a bounded offer report; `/freebies watch` watches while the app stays open, and `/freebies stop` stops only discovery. Outside the app, use `buildheadway setup` and `buildheadway freebies`. Installation refusal, optional X metering, account quotas and untrusted-post limits are covered in [setup and discovery](onboarding.md).

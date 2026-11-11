@@ -6,6 +6,8 @@ Give the app a goal. Senior agents plan and critique, verified free workers impl
 
 ## Free-model recovery
 
+[Setup and discovery](onboarding.md) keeps installation consent and free-offer observation separate from dispatch. A saved installation refusal applies before runtime downloads and forced repairs. Catalogs and X announcements never authorize model calls, install posted scripts, change pinned connections, resume blocked goals or count as acceptance. Discovery can run beside a goal, with its own cancellation and persistent opt-in request allowance; it does not reset that goal's budgets or account blockers.
+
 Version 0.12 saves model attempts, usable responses, failures and cooldowns with the goal. Worker and planner health are tracked separately: a malformed planning reply does not imply that the same model cannot implement code. Health records are observations, not test results or evidence of current pricing.
 
 Before every automatic free call, including fallback and retry, BuildHeadway refreshes the zero-price catalog. Models in cooldown wait while ready alternatives can run. Among ready models, fewer consecutive failures take priority, preserving existing preferences and repair-cycle rotation for ties. Explicit model selection permits only the chosen model. Old pricing or a past successful response cannot authorize a call.
