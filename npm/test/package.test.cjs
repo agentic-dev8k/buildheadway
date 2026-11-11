@@ -66,6 +66,30 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(buildheadway(['--version']), new RegExp('BuildHeadway ' + pkg.version.replaceAll('.', '\\.')));
   const installed = path.join(prefix, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', pkg.name);
   const taskRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], options);
+  const discoveryHome = path.join(root, 'first launch discovery');
+  const discovery = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), ...args], {
+    ...options, env: { ...env, BUILDHEADWAY_HOME: discoveryHome, TEST_X_TOKEN: 'NEVER_SAVE_X_TOKEN' },
+  });
+  assert.equal(JSON.parse(discovery(['freebies', 'status', '--json'])).x.enabled, false);
+  assert.equal(fs.existsSync(discoveryHome), false, 'read-only discovery must not create settings');
+  assert.throws(() => discovery(['freebies', 'x-enable', '--token-env', 'TEST_X_TOKEN', '--requests', '1']));
+  let freeState = JSON.parse(discovery(['freebies', 'x-enable', '--token-env', 'TEST_X_TOKEN', '--requests', '2', '--acknowledge-metered', '--json']));
+  assert.equal(freeState.x.allowed_requests, 2);
+  assert.equal(freeState.x.used_requests, 0, 'configuration must not call the metered API');
+  discovery(['freebies', 'enable', '--interval', '15m', '--json']);
+  discovery(['freebies', 'disable', '--json']);
+  freeState = JSON.parse(discovery(['freebies', 'x-disable', '--json']));
+  assert.equal(freeState.watch, false);
+  assert.equal(freeState.x.enabled, false);
+  assert.equal(freeState.x.allowed_requests, 2, 'disable must not reset the persistent allowance');
+  const freeStatePath = path.join(discoveryHome, 'data', 'freebies.json');
+  const freeStateBytes = fs.readFileSync(freeStatePath);
+  assert.equal(freeStateBytes.includes(Buffer.from('NEVER_SAVE_X_TOKEN')), false);
+  discovery(['freebies', '--json']);
+  assert.deepEqual(fs.readFileSync(freeStatePath), freeStateBytes);
+  const setup = JSON.parse(discovery(['setup', '--decline-install', '--json']));
+  assert.equal(setup.policy.decline_install, true);
+  assert.equal(fs.existsSync(path.join(discoveryHome, 'config', 'connection.json')), false);
   const about = JSON.parse(buildheadway(['about', '--json']));
   assert.equal(about.name, 'BuildHeadway');
   assert.equal(about.version, metadata.version);
