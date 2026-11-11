@@ -301,6 +301,9 @@ func InstallAgents(ctx context.Context, paths Paths, ids []string, emit Emit) (m
 	return installAgents(ctx, paths, ids, emit, false)
 }
 func installAgents(ctx context.Context, paths Paths, ids []string, emit Emit, force bool) (map[string]string, error) {
+	if err := checkInstallationPolicy(paths, ids, force); err != nil {
+		return nil, err
+	}
 	if err := paths.Ensure(); err != nil {
 		return nil, err
 	}

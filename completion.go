@@ -41,6 +41,16 @@ func completionTree() completionNode {
 	add("history", completionNode{flags: append(append([]completionFlag{}, project...), f("--search", true), f("--limit", true))})
 	add("tasks", completionNode{flags: inspection[:len(inspection)-2]})
 	add("doctor", completionNode{flags: []completionFlag{f("--json", false)}})
+	add("setup", completionNode{flags: []completionFlag{f("--json", false), f("--decline-install", false), {"--install", true, []string{"codex", "claude", "opencode", "pi", "cline", "gemini"}}}})
+	freebies := completionNode{flags: []completionFlag{f("--json", false)}, children: map[string]completionNode{}, childFirst: true, childFlags: true}
+	for _, action := range strings.Fields("status check enable disable watch x-enable x-disable") {
+		freebies.children[action] = completionNode{flags: []completionFlag{f("--json", false)}}
+	}
+	for _, action := range []string{"enable", "watch"} {
+		freebies.children[action] = completionNode{flags: []completionFlag{f("--json", false), f("--interval", true)}}
+	}
+	freebies.children["x-enable"] = completionNode{flags: []completionFlag{f("--json", false), f("--token-env", true), f("--requests", true), f("--acknowledge-metered", false)}}
+	root.children["freebies"] = freebies
 	agentIDs := []string{}
 	for _, agent := range Registry {
 		if agent.Adapter {

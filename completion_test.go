@@ -33,6 +33,10 @@ func TestCompletionRespectsCommandPositionAndFlagValues(t *testing.T) {
 		{[]string{"tasks", "--ta"}, []string{"--task"}},
 		{[]string{"history", "--ta"}, []string{}},
 		{[]string{"completion", "power"}, []string{"powershell"}},
+		{[]string{"setup", "--install", "op"}, []string{"opencode"}},
+		{[]string{"freebies", "x-e"}, []string{"x-enable"}},
+		{[]string{"freebies", "x-enable", "--ack"}, []string{"--acknowledge-metered"}},
+		{[]string{"freebies", "check", "--req"}, []string{}},
 	} {
 		t.Run(strings.Join(tc.words, " "), func(t *testing.T) {
 			if got := completionCandidates(tc.words); !reflect.DeepEqual(got, tc.want) {

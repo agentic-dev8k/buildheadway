@@ -73,6 +73,10 @@ func runMain(args []string) int {
 			return runUpdate(paths, args[1:])
 		case "scan":
 			return runScanCommand(paths, args[1:])
+		case "setup":
+			return runSetupCommand(paths, args[1:])
+		case "freebies":
+			return runFreebiesCommand(paths, args[1:])
 		case "install":
 			if brandEnv("BUILDHEADWAY_INSTALL_METHOD") == "npm" {
 				fmt.Println("BuildHeadway is installed through npm. Run buildheadway in your project to start.")
@@ -153,6 +157,8 @@ func runMain(args []string) int {
 		fmt.Println("  buildheadway --demo               Try the offline repair loop")
 		fmt.Println("  buildheadway completion bash      Generate shell completions (also zsh/fish/powershell)")
 		fmt.Println("  buildheadway scan                 Find installed coding agents")
+		fmt.Println("  buildheadway setup                Inspect setup; review agent installation")
+		fmt.Println("  buildheadway freebies             Inspect free-offer discovery and optional X search")
 		fmt.Println("  buildheadway about                Project credits and agent capabilities")
 		fmt.Println("  buildheadway install              Install for this user")
 		fmt.Println("  buildheadway update               Upgrade a native installation")
