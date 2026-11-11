@@ -31,8 +31,8 @@ def run(binary, root):
     os.close(slave)
     transcript = bytearray()
 
-    def wait_for(predicate, description):
-        deadline = time.monotonic() + 30
+    def wait_for(predicate, description, timeout=30):
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if select.select([master], [], [], 0.05)[0]:
                 try:
@@ -66,7 +66,9 @@ def run(binary, root):
         os.write(master, b'/freebies stop\r')
         wait_for(lambda: state().get('watch') is False, 'stop only discovery')
         os.write(master, b'/quit\r')
-        proc.wait(timeout=5)
+        # A terminal can block its cleanup writes when the PTY is full,
+        # especially on macOS. Drain it while retaining the five-second bound.
+        wait_for(lambda: proc.poll() is not None, 'clean shutdown', timeout=5)
         assert proc.returncode == 0
         print(json.dumps({'first_launch': 'inspected', 'package_review': 'visible', 'installation': 'declined', 'catalog': 'native fixture', 'x': 'disabled', 'watcher': 'stopped', 'models': 'not invoked'}))
     finally:
