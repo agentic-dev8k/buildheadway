@@ -116,3 +116,27 @@ func TestSetupPolicyRejectsAmbiguousRecords(t *testing.T) {
 		}
 	}
 }
+
+func TestDeclinedExistingAgentCannotDownloadRuntimePrerequisite(t *testing.T) {
+	paths := testPaths(t)
+	if err := updateSetupPolicy(paths, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	install := func() error { calls++; return nil }
+	if err := installAgentPrerequisite(paths, []string{"opencode"}, install); err == nil || calls != 0 {
+		t.Fatal("declined prerequisite reached downloader", err, calls)
+	}
+	if err := updateSetupPolicy(paths, false, []string{"cline"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := installAgentPrerequisite(paths, []string{"opencode"}, install); err == nil || calls != 0 {
+		t.Fatal("unrelated approval allowed download", err, calls)
+	}
+	if err := updateSetupPolicy(paths, false, []string{"opencode"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := installAgentPrerequisite(paths, []string{"opencode"}, install); err != nil || calls != 1 {
+		t.Fatal("reviewed prerequisite unavailable", err, calls)
+	}
+}

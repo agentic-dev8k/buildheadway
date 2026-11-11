@@ -308,8 +308,12 @@ func installAgents(ctx context.Context, paths Paths, ids []string, emit Emit, fo
 		return nil, err
 	}
 	if contains(ids, "opencode") || contains(ids, "claude") {
-		if err := EnsureGitBash(ctx, paths, emit); err != nil {
-			return nil, fmt.Errorf("Windows coding tools setup: %w", err)
+		var shellErr error
+		if runtime.GOOS == "windows" && FindGitBash(paths) == "" {
+			shellErr = installAgentPrerequisite(paths, ids, func() error { return EnsureGitBash(ctx, paths, emit) })
+		}
+		if shellErr != nil {
+			return nil, fmt.Errorf("Windows coding tools setup: %w", shellErr)
 		}
 	}
 	selected := map[string]string{}

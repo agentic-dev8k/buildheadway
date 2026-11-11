@@ -254,7 +254,14 @@ func TestTerminalConnectionSelectionAndComposer(t *testing.T) {
 	for _, definition := range Registry {
 		inventory.Agents = append(inventory.Agents, DetectedAgent{AgentDefinition: definition, Installed: definition.ID == "pi", Version: "1.3.0", Path: "C:/Tools/pi.cmd"})
 	}
-	updated, _ := model.Update(scanMsg{inventory})
+	updated, inspect := model.Update(scanMsg{inventory})
+	model = updated.(appModel)
+	if inspect == nil || !model.busy || model.mode != "chat" {
+		t.Fatal("first launch skipped setup inspection")
+	}
+	// The scan now starts read-only compatibility inspection before presenting
+	// connections. Deliver its fixture result without probing the host's CLIs.
+	updated, _ = model.Update(setupInspectionMsg{Inspection: SetupInspection{Inventory: inventory}})
 	model = updated.(appModel)
 	if len(model.choices) == 0 || model.choices[0].Backend != "pi" {
 		t.Fatal("installed Pi was not prioritized")

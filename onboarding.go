@@ -108,6 +108,25 @@ func checkInstallationPolicy(paths Paths, ids []string, force bool) error {
 	return nil
 }
 
+// Existing CLIs may still need a private Windows shell. Reusing an executable
+// is not permission to download that prerequisite after installation refusal.
+func installAgentPrerequisite(paths Paths, ids []string, install func() error) error {
+	p, err := readSetupPolicy(paths)
+	if err != nil {
+		return err
+	}
+	if p.DeclineInstall {
+		approved := false
+		for _, id := range ids {
+			approved = approved || contains(p.Approved, id)
+		}
+		if !approved {
+			return errors.New("agent runtime installation was declined; review /connect or explicitly approve the agent with buildheadway setup --install AGENT")
+		}
+	}
+	return install()
+}
+
 type SetupInspection struct {
 	OS        string            `json:"os"`
 	Arch      string            `json:"arch"`
