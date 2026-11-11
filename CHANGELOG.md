@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.0 — 2026-11-11
+
+- First unconnected launch checks installed agent compatibility and free-model metadata, then reviews exact private packages before setup. Users can persistently decline downloads or explicitly approve named platforms. Refusal also applies before later headless/runtime/forced-repair installation; compatible existing agents stay usable. Added read-only `setup`, explicit `--install` and `--decline-install`.
+- Added `freebies` and `/freebies` for bounded catalog discovery, inspection and cancellable watching beside coding goals. Prefer OpenCode's refreshed native catalog; otherwise inspect public zero-price/tool-capable metadata. Persist opt-in settings and retain a bounded, dated announcement inbox without retaining stale prices as dispatch permission. No daemon or schedule is created.
+- Optional official X recent search is disabled by default and explicitly metered. Environment-variable credential references, durable pre-request attempt reservations and latched authentication/payment/quota blockers prevent accidental resets or repeated paid calls. Posts remain unverified, never executed, installed, forwarded into prompts or used to change models or bypass a blocked goal. No unlimited free API or inference is promised.
+- Added native CLI, actual POSIX first-launch, HTTP/protocol, cancellation/concurrency, malformed-state, exact-zero-price and installed-package regressions. Existing checkpoint v12, explicit model choices, fresh dispatch pricing, budgets, hard blockers, source snapshots, executed acceptance and senior approval remain unchanged.
+
 ## 0.44.0 — 2026-11-10
 
 - Free OpenCode workers and automatically verified-free senior/consultation calls now stop on positive structured step-cost receipts while the child is still running. Received charges keep hard-blocker priority over cancellation and remain in full logs; no model fallback evades the blocker. Explicit paid senior choices retain their ordinary allowance.

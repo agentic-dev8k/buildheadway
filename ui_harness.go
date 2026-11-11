@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var paletteCommands = []string{"/about", "/acceptance", "/agents", "/attach ", "/browser", "/browser evidence", "/check", "/commands", "/config", "/connect", "/context", "/credits", "/debug ", "/detach ", "/diff", "/discussion", "/docs ", "/doctor", "/events", "/export", "/extensions", "/figureout ", "/help", "/history", "/hooks", "/init", "/inputs", "/login", "/logs", "/mcp", "/memory", "/model ", "/models", "/next", "/open ", "/plan ", "/prompts", "/queue", "/queue add ", "/queue archives", "/queue prune", "/quit", "/remember ", "/report", "/resume", "/review ", "/routing", "/skills", "/status", "/steer ", "/steering", "/stop", "/tasks", "/team", "/test ", "/workflows"}
+var paletteCommands = []string{"/about", "/acceptance", "/agents", "/attach ", "/browser", "/browser evidence", "/check", "/commands", "/config", "/connect", "/context", "/credits", "/debug ", "/detach ", "/diff", "/discussion", "/docs ", "/doctor", "/events", "/export", "/extensions", "/figureout ", "/freebies", "/freebies check", "/freebies watch", "/freebies stop", "/help", "/history", "/hooks", "/init", "/inputs", "/login", "/logs", "/mcp", "/memory", "/model ", "/models", "/next", "/open ", "/plan ", "/prompts", "/queue", "/queue add ", "/queue archives", "/queue prune", "/quit", "/remember ", "/report", "/resume", "/review ", "/routing", "/setup", "/skills", "/status", "/steer ", "/steering", "/stop", "/tasks", "/team", "/test ", "/workflows"}
 
 func (m appModel) paletteMatches() []string {
 	var out []string
@@ -160,6 +160,17 @@ func (m appModel) selectionView(w, h int) string {
 		names = append([]string{"Automatic free-model selection"}, m.workerModels...)
 	}
 	rows := []string{accent.Render(shortUI("Connect your coding team", w))}
+	if m.setupBackend != "" {
+		rows = []string{accent.Render(shortUI("Review private installation", w)), shortUI("Senior: "+m.setupBackend+" · worker: OpenCode", w)}
+		for _, id := range m.setupNeeded {
+			for _, a := range Registry {
+				if a.ID == id {
+					rows = append(rows, shortUI("Package: "+a.Package, w))
+				}
+			}
+		}
+		rows = append(rows, shortUI("Node / Windows shell may also be set up.", w))
+	}
 	start := max(0, m.cursor-max(0, h-3))
 	for i := start; i < len(names) && len(rows) < h; i++ {
 		mark := "  "

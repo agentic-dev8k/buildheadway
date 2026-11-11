@@ -3,6 +3,7 @@
 ## Use the terminal app
 
 - [Quickstart](quickstart.md): install, verify the command, open a project, connect and give the team a goal.
+- [Setup and free-offer discovery](onboarding.md): reviewed installation, persistent refusal, free catalogs and optional metered X search.
 
 - [Agent compatibility and free models](agents.md): detect real CLIs, check required controls and inspect fresh zero-price models without inference.
 - [Installation and troubleshooting](install.md): platform instructions, updates, diagnostics, and removal.

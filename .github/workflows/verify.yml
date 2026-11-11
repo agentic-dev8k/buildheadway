@@ -47,6 +47,7 @@ jobs:
         run: |
           go build -buildvcs=false -o "$RUNNER_TEMP/buildheadway-terminal" .
           python3 scripts/terminal_conversation_test.py "$RUNNER_TEMP/buildheadway-terminal" --extensions
+          python3 scripts/terminal_onboarding_test.py "$RUNNER_TEMP/buildheadway-terminal"
       - name: Actual pinned upstream browser MCP protocol (no Chromium launch)
         run: python3 scripts/browser_protocol_test.py
       - name: Fresh private Windows shell setup

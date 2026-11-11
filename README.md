@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.44.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.45.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -50,6 +50,8 @@ Completion requires executed passing checks, requirement coverage, unchanged che
 ## Documentation
 
 Start with the [documentation index](docs/README.md).
+
+First launch reviews missing agent installations. You can decline and use [free-offer discovery](docs/onboarding.md), including optional metered X search, without changing active goals or their verification gates.
 
 | Guide | Covers |
 | --- | --- |

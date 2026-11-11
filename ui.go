@@ -49,43 +49,49 @@ type modelsMsg struct {
 type tickMsg time.Time
 type choice struct{ Backend, Label, Hint string }
 type appModel struct {
-	paletteOpen      bool
-	paletteQuery     string
-	paletteCursor    int
-	savedDraft       string
-	hasSavedDraft    bool
-	following        bool
-	unread           int
-	paths            Paths
-	repo             string
-	settings         Settings
-	connected        bool
-	inventory        Inventory
-	entries          []chatEntry
-	editor           textarea.Model
-	viewport         viewport.Model
-	spinner          spinner.Model
-	events           chan Event
-	mode             string
-	choices          []choice
-	cursor           int
-	busy             bool
-	stage            string
-	width, height    int
-	cancel           context.CancelFunc
-	jobDone          chan struct{}
-	initial          string
-	initialPlan      bool
-	initialFigureOut bool
-	workerModels     []string
-	demo             bool
-	quitting         bool
-	history          []string
-	historyIndex     int
-	loginTarget      Connection
-	resumeAfterLogin bool
-	progress         Progress
-	resumeRunID      string
+	setupBackend      string
+	setupNeeded       []string
+	freebieCancel     context.CancelFunc
+	freebieDone       chan struct{}
+	freebieGeneration int
+	freebieStarted    bool
+	paletteOpen       bool
+	paletteQuery      string
+	paletteCursor     int
+	savedDraft        string
+	hasSavedDraft     bool
+	following         bool
+	unread            int
+	paths             Paths
+	repo              string
+	settings          Settings
+	connected         bool
+	inventory         Inventory
+	entries           []chatEntry
+	editor            textarea.Model
+	viewport          viewport.Model
+	spinner           spinner.Model
+	events            chan Event
+	mode              string
+	choices           []choice
+	cursor            int
+	busy              bool
+	stage             string
+	width, height     int
+	cancel            context.CancelFunc
+	jobDone           chan struct{}
+	initial           string
+	initialPlan       bool
+	initialFigureOut  bool
+	workerModels      []string
+	demo              bool
+	quitting          bool
+	history           []string
+	historyIndex      int
+	loginTarget       Connection
+	resumeAfterLogin  bool
+	progress          Progress
+	resumeRunID       string
 }
 
 func newApp(paths Paths, repo, initial string, demo, chooseProject bool) appModel {
@@ -176,6 +182,8 @@ func (m *appModel) refresh() {
 	}
 }
 func (m *appModel) connections() {
+	m.setupBackend = ""
+	m.setupNeeded = nil
 	m.mode = "connect"
 	m.cursor = 0
 	m.choices = nil
@@ -186,6 +194,14 @@ func (m *appModel) connections() {
 				hint = "Installed"
 			}
 			m.choices = append(m.choices, choice{agent.ID, "Use " + agent.Name, hint})
+			last := len(m.choices) - 1
+			if agent.AdapterCheck != nil && agent.AdapterCheck.Status != "compatible" {
+				m.choices[last].Label = "Repair " + agent.Name
+				m.choices[last].Hint = agent.AdapterCheck.Status
+			}
+			if agent.FreeModels != nil && agent.FreeModels.Status == "verified" {
+				m.choices[last].Hint = itoa(len(agent.FreeModels.Models)) + " zero-price listings; quota unchecked"
+			}
 		}
 	}
 	for _, agent := range m.inventory.Agents {
@@ -197,7 +213,8 @@ func (m *appModel) connections() {
 			m.choices = append(m.choices, choice{agent.ID, "Set up " + agent.Name, hint})
 		}
 	}
-	m.add("Connections", "Choose an agent for planning and review. Free OpenCode workers are selected automatically. Existing installations and their own saved accounts are reused.")
+	m.choices = append(m.choices, choice{"@discover", "Skip installation; watch free offers", "No model calls or automatic downloads"})
+	m.add("Connections", "Choose an agent for planning and review. Missing or incompatible agents and the OpenCode worker are reviewed before installation. Existing compatible tools and their native accounts are reused. You can skip installation and use discovery only.")
 }
 func (m *appModel) startSetup(backend string) tea.Cmd {
 	if m.busy {
@@ -457,7 +474,7 @@ func (m *appModel) handle(text string) tea.Cmd {
 		}
 		return nil
 	case text == "/help":
-		m.add("Help", "Type a message to start a goal.\n/about [AGENT] · project credits and adapter capabilities\n/credits [AGENT] · upstream agent and library acknowledgments\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions · customization sources and starter commands\n/mcp · configured external tool servers\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/commands · find built-in commands\n/inputs [PROMPT_NAME] · inspect actual saved agent prompts\n/browser · browser runtime status\n/browser evidence · inspect saved screenshot integrity\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
+		m.add("Help", "Type a message to start a goal.\n/about [AGENT] · project credits and adapter capabilities\n/credits [AGENT] · upstream agent and library acknowledgments\n/setup · inspect agents and review installation\n/freebies [check|watch|stop] · bounded offer discovery\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions · customization sources and starter commands\n/mcp · configured external tool servers\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/commands · find built-in commands\n/inputs [PROMPT_NAME] · inspect actual saved agent prompts\n/browser · browser runtime status\n/browser evidence · inspect saved screenshot integrity\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
 		return nil
 	case text == "/routing" || text == "/acceptance" || text == "/status" || text == "/tasks" || text == "/history" || text == "/events":
 		kind, repo := strings.TrimPrefix(text, "/"), m.repo
@@ -490,8 +507,28 @@ func (m *appModel) handle(text string) tea.Cmd {
 		return nil
 	case text == "/connect":
 		if !m.busy {
-			m.connections()
+			return m.inspectOnboarding()
 		}
+		return nil
+	case text == "/setup":
+		if !m.busy {
+			return m.inspectOnboarding()
+		}
+		return nil
+	case text == "/freebies" || text == "/freebies status":
+		state, err := readFreebies(m.paths)
+		if err != nil {
+			m.add("Discovery", err.Error())
+		} else {
+			m.add("Discovery", formatFreebies(state))
+		}
+		return nil
+	case text == "/freebies check":
+		return m.checkFreebieOffers()
+	case text == "/freebies watch":
+		return m.startFreebieWatch()
+	case text == "/freebies stop" || text == "/freebies disable":
+		m.stopFreebieWatch()
 		return nil
 	case text == "/login":
 		if !m.busy && m.connected && !m.demo {
@@ -536,7 +573,7 @@ func (m *appModel) handle(text string) tea.Cmd {
 	if m.mode == "connect" {
 		for i, item := range m.choices {
 			if text == itoa(i+1) {
-				return m.startSetup(item.Backend)
+				return m.selectSetupChoice(item.Backend)
 			}
 		}
 		m.add("BuildHeadway", "Choose a connection with the arrow keys and Enter.")
@@ -551,6 +588,24 @@ func (m *appModel) handle(text string) tea.Cmd {
 func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	var commands []tea.Cmd
 	switch msg := message.(type) {
+	case setupInspectionMsg:
+		m.busy = false
+		if msg.Err != nil {
+			m.stage = "Setup needs attention"
+			m.add("Setup", msg.Err.Error())
+			m.connections()
+		} else {
+			m.inventory = msg.Inspection.Inventory
+			m.add("Setup", formatSetup(msg.Inspection))
+			m.connections()
+			m.stage = "Choose a connection or skip installation"
+		}
+	case freebieInspectionMsg:
+		if msg.Err != nil {
+			m.add("Discovery", msg.Err.Error())
+		} else {
+			m.add("Discovery", formatFreebies(msg.State))
+		}
 	case inspectionMsg:
 		if msg.Err != nil {
 			m.add("BuildHeadway", msg.Err.Error())
@@ -572,6 +627,12 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case scanMsg:
 		m.inventory = msg.Inventory
+		if !m.freebieStarted && !m.demo {
+			m.freebieStarted = true
+			if state, e := readFreebies(m.paths); e == nil && state.Watch {
+				commands = append(commands, m.startFreebieWatch())
+			}
+		}
 		if m.busy {
 			break
 		}
@@ -599,13 +660,23 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			} else {
-				m.connections()
-				m.stage = "Choose a connection"
+				commands = append(commands, m.inspectOnboarding())
 			}
 		}
 	case Event:
 		commands = append(commands, waitEvent(m.events))
 		switch msg.Kind {
+		case "freebies":
+			r := msg.Value.(freebieInspectionMsg)
+			m.add("Discovery", formatFreebies(r.State))
+		case "freebies-stopped":
+			r := msg.Value.(freebieWatchStoppedMsg)
+			if r.Generation == m.freebieGeneration {
+				m.freebieCancel = nil
+				if r.Err != nil && !errors.Is(r.Err, context.Canceled) {
+					m.add("Discovery", r.Err.Error())
+				}
+			}
 		case "status":
 			m.stage = msg.Text
 		case "progress":
@@ -780,7 +851,7 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if m.mode == "connect" && m.editor.Value() == "" && len(m.choices) > 0 {
-				commands = append(commands, m.startSetup(m.choices[m.cursor].Backend))
+				commands = append(commands, m.selectSetupChoice(m.choices[m.cursor].Backend))
 			} else if m.mode == "models" && m.editor.Value() == "" {
 				model := "auto"
 				if m.cursor > 0 {
@@ -815,6 +886,15 @@ func (m appModel) View() string { return m.harnessView() }
 func RunUI(paths Paths, repo, initial string, demo, chooseProject bool) error {
 	model := newApp(paths, repo, initial, demo, chooseProject)
 	result, err := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	if final, ok := result.(appModel); ok && final.freebieCancel != nil {
+		final.freebieCancel()
+		if final.freebieDone != nil {
+			select {
+			case <-final.freebieDone:
+			case <-time.After(5 * time.Second):
+			}
+		}
+	}
 	if final, ok := result.(appModel); ok && final.cancel != nil {
 		final.cancel()
 		if final.jobDone != nil {
