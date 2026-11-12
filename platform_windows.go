@@ -68,6 +68,26 @@ func terminateProcess(cmd *exec.Cmd) error {
 	return nil
 }
 func replaceFile(source, target string) error {
+	sourcePath, err := filepath.Abs(source)
+	if err != nil {
+		return err
+	}
+	targetPath, err := filepath.Abs(target)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(sourcePath) == filepath.Dir(targetPath) {
+		// Root.Rename uses Windows' POSIX replacement semantics where
+		// supported, with the standard library's filesystem fallback. Unlike
+		// MoveFileEx, it can replace a name while share-delete readers finish
+		// the previous snapshot. AtomicJSON already syncs the new file first.
+		dir, err := os.OpenRoot(filepath.Dir(targetPath))
+		if err != nil {
+			return err
+		}
+		defer dir.Close()
+		return dir.Rename(filepath.Base(sourcePath), filepath.Base(targetPath))
+	}
 	from, err := windows.UTF16PtrFromString(source)
 	if err != nil {
 		return err
