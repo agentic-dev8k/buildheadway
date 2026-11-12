@@ -87,6 +87,25 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.equal(freeStateBytes.includes(Buffer.from('NEVER_SAVE_X_TOKEN')), false);
   discovery(['freebies', '--json']);
   assert.deepEqual(fs.readFileSync(freeStatePath), freeStateBytes);
+  freeState.report = { checked_at: '2026-11-12T00:00:00Z', catalog_status: 'public_catalog', x_status: 'checked', offers: [] };
+  for (let i = 0; i < 80; i++) freeState.report.offers.push({
+    id: `fixture/model-${i}`, source: 'models.dev', title: `Catalog model ${i}`,
+    url: 'https://models.dev/', verification: 'catalog_only', observed_at: '2026-11-12T00:00:00Z',
+  });
+  for (let i = 0; i < 20; i++) freeState.report.offers.push({
+    id: `x/${100 + i}`, source: 'x', title: `Retained announcement ${i}`,
+    url: `https://x.com/i/status/${100 + i}`, verification: 'unverified_announcement', observed_at: '2026-11-01T00:00:00Z',
+  });
+  fs.writeFileSync(freeStatePath, JSON.stringify(freeState));
+  const datedEvidence = fs.readFileSync(freeStatePath);
+  const preview = discovery(['freebies', 'status']).toString();
+  assert.match(preview, /Retained announcement 0/);
+  assert.match(preview, /Observed: 2026-11-01T00:00:00Z/);
+  assert.equal((preview.match(/· unverified_announcement/g) || []).length, 10);
+  assert.equal((preview.match(/· catalog_only/g) || []).length, 10);
+  assert.match(preview, /80 more offers/);
+  assert.deepEqual(JSON.parse(discovery(['freebies', 'status', '--json'])), freeState);
+  assert.deepEqual(fs.readFileSync(freeStatePath), datedEvidence, 'terminal/JSON discovery inspection must not rewrite evidence');
   const setup = JSON.parse(discovery(['setup', '--decline-install', '--json']));
   assert.equal(setup.policy.decline_install, true);
   assert.equal(fs.existsSync(path.join(discoveryHome, 'config', 'connection.json')), false);
