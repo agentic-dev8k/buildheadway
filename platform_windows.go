@@ -12,6 +12,36 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Readers must share rename/delete access so a concurrent atomic publication
+// can replace the name while the reader finishes its previous complete file.
+// This grants no delete access to this handle; it remains read-only.
+func openFreebieStateFile(path string) (*os.File, error) {
+	name, err := filepath.Abs(path)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	// Preserve long paths and UNC paths, including Unicode, without depending
+	// on a machine-wide long-path policy or changing the working directory.
+	if !strings.HasPrefix(name, `\\?\`) {
+		if strings.HasPrefix(name, `\\`) {
+			name = `\\?\UNC\` + strings.TrimPrefix(name, `\\`)
+		} else {
+			name = `\\?\` + name
+		}
+	}
+	wide, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	handle, err := windows.CreateFile(wide, windows.GENERIC_READ,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	return os.NewFile(uintptr(handle), path), nil
+}
+
 func configureProcess(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
@@ -38,6 +68,26 @@ func terminateProcess(cmd *exec.Cmd) error {
 	return nil
 }
 func replaceFile(source, target string) error {
+	sourcePath, err := filepath.Abs(source)
+	if err != nil {
+		return err
+	}
+	targetPath, err := filepath.Abs(target)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(sourcePath) == filepath.Dir(targetPath) {
+		// Root.Rename uses Windows' POSIX replacement semantics where
+		// supported, with the standard library's filesystem fallback. Unlike
+		// MoveFileEx, it can replace a name while share-delete readers finish
+		// the previous snapshot. AtomicJSON already syncs the new file first.
+		dir, err := os.OpenRoot(filepath.Dir(targetPath))
+		if err != nil {
+			return err
+		}
+		defer dir.Close()
+		return dir.Rename(filepath.Base(sourcePath), filepath.Base(targetPath))
+	}
 	from, err := windows.UTF16PtrFromString(source)
 	if err != nil {
 		return err

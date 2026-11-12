@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.46.0 — 2026-11-12
+
+- Discovery now publishes each received X cursor together with its bounded report, preventing interrupted or rejected saves from advancing past unsaved announcements. Reserved attempts and received hard blockers remain durable even if report publication fails or cancellation races.
+- Windows discovery readers allow atomic file replacement while retaining their previous complete snapshot. Read size remains bounded, and long Unicode paths retain support. Native CI caught the original concurrent-reader access failure; held-reader and platform regressions retain the assertion rather than ignoring it.
+- Pending responses cannot replace a newer X authorization or disable decision. Superseded results retain their counted attempt and unverified history without applying the stale cursor or blocker. Unrelated watch settings remain independent. Nonempty pages require the maximum received post ID, with exact decimal ordering and rejection of results at or before the requested cursor.
+- Terminal discovery reserves preview space for dated announcements beside large catalogs, preserves first-observed dates on replay and keeps full JSON/report ordering unchanged. No new commands, saved schemas, model permissions or acceptance shortcuts are introduced; discovery remains a bounded recent-results sample.
+- Added concurrent state-reader, failed-publication, reauthorization/disable, hard-blocker/cancellation, exact-ID and installed-terminal/JSON regressions. Checkpoint v12, zero-price dispatch checks, budgets, provider/tool blockers, source snapshots and senior approval remain unchanged.
+
 ## 0.45.0 — 2026-11-11
 
 - First unconnected launch checks installed agent compatibility and free-model metadata, then reviews exact private packages before setup. Users can persistently decline downloads or explicitly approve named platforms. Refusal also applies before later headless/runtime/forced-repair installation; compatible existing agents stay usable. Added read-only `setup`, explicit `--install` and `--decline-install`.

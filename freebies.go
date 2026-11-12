@@ -73,7 +73,12 @@ func readFreebies(paths Paths) (FreebieState, error) {
 	if !info.Mode().IsRegular() || info.Size() > 512<<10 {
 		return s, errors.New("freebie state must be a regular file of at most 512 KiB")
 	}
-	data, err := os.ReadFile(p)
+	file, err := openFreebieStateFile(p)
+	if err != nil {
+		return s, err
+	}
+	defer file.Close()
+	data, err := ReadLimited(file, 512<<10)
 	if err != nil {
 		return s, err
 	}
@@ -292,12 +297,62 @@ func xFreebieOffers(data []byte, at string) ([]FreebieOffer, string, error) {
 		}
 		seen[post.ID] = true
 		foundCursor = foundCursor || post.ID == response.Meta.NewestID
+		if response.Meta.NewestID == "" || compareXPostIDs(post.ID, response.Meta.NewestID) > 0 {
+			return nil, "", errors.New("X search cursor does not cover the received posts")
+		}
 		offers = append(offers, FreebieOffer{ID: "x/" + post.ID, Source: "x", Title: freebieTitle(post.Text), URL: "https://x.com/i/status/" + post.ID, Verification: "unverified_announcement", ObservedAt: at})
 	}
 	if !foundCursor || (response.Meta.NewestID != "" && !freebiePostID.MatchString(response.Meta.NewestID)) {
 		return nil, "", errors.New("invalid X search cursor")
 	}
 	return offers, response.Meta.NewestID, nil
+}
+
+// Post identifiers are decimal strings. Float conversion loses ordering above
+// 2^53, and lexicographic comparison alone misorders different digit lengths.
+func compareXPostIDs(a, b string) int {
+	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return strings.Compare(a, b)
+}
+
+// A response belongs to one durable reservation. User reconfiguration may run
+// while HTTP is pending; it must not inherit a stale cursor or old-account block.
+func retainXBlock(paths Paths, reservation FreebieXConfig, code int) (bool, error) {
+	applied := false
+	err := mutateFreebies(paths, func(s *FreebieState) error {
+		if s.X != reservation {
+			return nil
+		}
+		s.X.Blocked = fmt.Sprintf("HTTP %d", code)
+		applied = true
+		return nil
+	})
+	return applied, err
+}
+
+func publishFreebieReport(paths Paths, report FreebieReport, reservation *FreebieXConfig, cursor string) (FreebieReport, error) {
+	err := mutateFreebies(paths, func(s *FreebieState) error {
+		if reservation != nil && s.X != *reservation {
+			report.XStatus = "superseded"
+			report.XError = "X settings changed during this request. Its attempt remains counted; received announcements are retained as unverified history and its cursor is not applied."
+			cursor = ""
+		}
+		// The cursor and the received offers have one publication boundary.
+		// Failed validation/storage leaves both old values intact; pre-request
+		// usage and any already retained hard blocker are never refunded.
+		if report.XStatus == "checked" && cursor != "" {
+			s.X.SinceID = cursor
+		}
+		s.Report = report
+		return nil
+	})
+	return report, err
 }
 
 func checkFreebies(ctx context.Context, paths Paths, client *http.Client) (FreebieReport, error) {
@@ -373,34 +428,44 @@ func checkFreebiesWith(ctx context.Context, paths Paths, client *http.Client, na
 	}
 	report.XStatus = status
 	xOffers := []FreebieOffer{}
+	var reservation *FreebieXConfig
+	cursor := ""
 	if status == "reserved" {
+		config.UsedRequests++ // reserveXRequest returned the pre-reservation copy.
+		reservation = &config
 		query := url.Values{"query": {freebieQuery}, "max_results": {"10"}, "tweet.fields": {"created_at"}}
 		if config.SinceID != "" {
 			query.Set("since_id", config.SinceID)
 		}
 		data, code, xerr := freebieGet(ctx, client, freebieXURL+"?"+query.Encode(), os.Getenv(config.TokenEnv))
 		var offers []FreebieOffer
-		cursor := ""
 		if xerr == nil {
 			offers, cursor, xerr = xFreebieOffers(data, report.CheckedAt)
+			if xerr == nil && config.SinceID != "" {
+				for _, o := range offers {
+					if compareXPostIDs(strings.TrimPrefix(o.ID, "x/"), config.SinceID) <= 0 {
+						xerr = errors.New("X search returned posts at or before the requested cursor")
+						break
+					}
+				}
+			}
 		}
 		if xerr != nil {
 			report.XStatus = "error"
 			report.XError = xerr.Error()
 			if code == 401 || code == 402 || code == 403 || code == 429 {
 				report.XStatus = "blocked"
-				if err := mutateFreebies(paths, func(s *FreebieState) error { s.X.Blocked = fmt.Sprintf("HTTP %d", code); return nil }); err != nil {
-					return report, err
+				applied, err := retainXBlock(paths, config, code)
+				if err != nil {
+					return report, fmt.Errorf("X returned HTTP %d; could not retain its blocker: %w", code, err)
+				}
+				if applied {
+					config.Blocked = fmt.Sprintf("HTTP %d", code)
 				}
 			}
 		} else {
 			report.XStatus = "checked"
 			xOffers = offers
-			if cursor != "" {
-				if err := mutateFreebies(paths, func(s *FreebieState) error { s.X.SinceID = cursor; return nil }); err != nil {
-					return report, err
-				}
-			}
 		}
 	}
 	// Keep a bounded announcement inbox, with original observation times. Never
@@ -410,7 +475,8 @@ func checkFreebiesWith(ctx context.Context, paths Paths, client *http.Client, na
 		report.Offers = report.Offers[:freebieLimit-len(xOffers)]
 	}
 	report.Offers = append(report.Offers, xOffers...)
-	if err := mutateFreebies(paths, func(s *FreebieState) error { s.Report = report; return nil }); err != nil {
+	report, err = publishFreebieReport(paths, report, reservation, cursor)
+	if err != nil {
 		return report, err
 	}
 	if ctx.Err() != nil {
@@ -422,12 +488,21 @@ func checkFreebiesWith(ctx context.Context, paths Paths, client *http.Client, na
 func mergeXAnnouncements(current, previous []FreebieOffer) []FreebieOffer {
 	result := []FreebieOffer{}
 	seen := map[string]bool{}
+	firstObserved := map[string]string{}
+	for _, o := range previous {
+		if o.Source == "x" {
+			firstObserved[o.ID] = o.ObservedAt
+		}
+	}
 	for _, list := range [][]FreebieOffer{current, previous} {
 		for _, o := range list {
 			if o.Source != "x" || o.Verification != "unverified_announcement" || seen[o.ID] {
 				continue
 			}
 			seen[o.ID] = true
+			if firstObserved[o.ID] != "" {
+				o.ObservedAt = firstObserved[o.ID]
+			}
 			result = append(result, o)
 			if len(result) == 20 {
 				return result
@@ -453,13 +528,41 @@ func formatFreebies(s FreebieState) string {
 	if s.X.Enabled {
 		fmt.Fprintf(&out, "X request attempts: %d/%d (persistent, not a dollar spending cap)\n", s.X.UsedRequests, s.X.AllowedRequests)
 	}
-	for i, o := range r.Offers {
-		if i == 20 {
-			fmt.Fprintf(&out, "\n%d more offers; use freebies status --json for the complete bounded report.\n", len(r.Offers)-i)
-			break
-		}
+	preview := freebiePreview(r.Offers)
+	for _, o := range preview {
 		fmt.Fprintf(&out, "\n%s · %s\n%s\n%s\n", o.Title, o.Verification, o.ID, o.URL)
+		if o.ObservedAt != "" {
+			fmt.Fprintf(&out, "Observed: %s\n", o.ObservedAt)
+		}
+	}
+	if len(r.Offers) > len(preview) {
+		fmt.Fprintf(&out, "\n%d more offers; use freebies status --json for the complete bounded report.\n", len(r.Offers)-len(preview))
 	}
 	out.WriteString("\nAnnouncements and catalog prices do not prove account quota or successful inference. No offer installs software, changes selected models or resumes a blocked goal. X search is metered and disabled by default. Use /connect or buildheadway setup --install AGENT to approve a supported installation; dispatch independently refreshes prices.")
 	return out.String()
+}
+
+func freebiePreview(offers []FreebieOffer) []FreebieOffer {
+	preview := []FreebieOffer{}
+	for _, o := range offers {
+		if o.Source == "x" && len(preview) < 10 {
+			preview = append(preview, o)
+		}
+	}
+	for _, o := range offers {
+		if o.Source != "x" && len(preview) < 20 {
+			preview = append(preview, o)
+		}
+	}
+	seenX := 0
+	for _, o := range offers {
+		if o.Source != "x" {
+			continue
+		}
+		seenX++
+		if seenX > 10 && len(preview) < 20 {
+			preview = append(preview, o)
+		}
+	}
+	return preview
 }
