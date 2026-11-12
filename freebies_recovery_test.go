@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -16,6 +17,35 @@ import (
 
 func recoveryCatalog(context.Context, Paths) ([]string, error) {
 	return []string{"opencode/fixture"}, nil
+}
+
+func TestDiscoveryOpenReaderAllowsAtomicPublication(t *testing.T) {
+	paths := testPaths(t)
+	enableXFixture(t, paths, 1)
+	before, err := os.ReadFile(freebieStatePath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := openFreebieStateFile(freebieStatePath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	client := &http.Client{Transport: freebieTransport(func(*http.Request) (*http.Response, error) {
+		return freebieResponse(200, `{"data":[{"id":"88","text":"Offer"}],"meta":{"result_count":1,"newest_id":"88"}}`), nil
+	})}
+	report, err := checkFreebiesWith(context.Background(), paths, client, recoveryCatalog)
+	if err != nil || report.XStatus != "checked" {
+		t.Fatal("an open read-only snapshot blocked publication", report, err)
+	}
+	old, err := io.ReadAll(reader)
+	if err != nil || !bytes.Equal(old, before) {
+		t.Fatal("an already-open snapshot changed during publication", err)
+	}
+	state, err := readFreebies(paths)
+	if err != nil || state.X.SinceID != "88" || len(state.Report.Offers) != 2 || state.X.UsedRequests != 1 {
+		t.Fatal("a fresh reader did not get the new complete publication", state, err)
+	}
 }
 
 func TestDiscoveryCursorAlwaysPublishesWithItsOffers(t *testing.T) {

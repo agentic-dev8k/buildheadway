@@ -10,6 +10,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func openFreebieStateFile(path string) (*os.File, error) { return os.Open(path) }
+
 func configureProcess(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} }
 func terminateProcess(cmd *exec.Cmd) error {
 	if cmd.Process == nil {

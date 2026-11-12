@@ -73,7 +73,12 @@ func readFreebies(paths Paths) (FreebieState, error) {
 	if !info.Mode().IsRegular() || info.Size() > 512<<10 {
 		return s, errors.New("freebie state must be a regular file of at most 512 KiB")
 	}
-	data, err := os.ReadFile(p)
+	file, err := openFreebieStateFile(p)
+	if err != nil {
+		return s, err
+	}
+	defer file.Close()
+	data, err := ReadLimited(file, 512<<10)
 	if err != nil {
 		return s, err
 	}
