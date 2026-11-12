@@ -173,7 +173,7 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	if err := outputValue(s, formatFreebies(s), *asJSON); err != nil {
 		return fail(err)
 	}
-	if action == "check" && (s.Report.CatalogStatus == "error" || s.Report.XStatus == "blocked" || s.Report.XStatus == "error" || s.Report.XStatus == "missing_credential") {
+	if action == "check" && (s.Report.CatalogStatus == "error" || s.Report.XStatus == "blocked" || s.Report.XStatus == "error" || s.Report.XStatus == "missing_credential" || s.Report.XStatus == "superseded") {
 		return 1
 	}
 	return 0
