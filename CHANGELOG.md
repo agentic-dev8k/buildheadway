@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47.0 — 2026-11-12
+
+- Discovery watchers acquire exclusive ownership before enabling or changing their saved preferences. A competing CLI or terminal-app start is rejected without disabling the active watcher, changing its interval or creating a second local watcher.
+- Foreground watcher shutdown keeps ownership until its disabled state is saved, preventing old cleanup from stopping a replacement watcher. Failed cleanup is reported rather than silently ignored. Invalid watch intervals are rejected before creating user state.
+- Added actual native CLI competition, live two-process watch/stop and terminal-app regressions. Existing discovery reports, X reservations, installation choices, active goals/drafts, checkpoint v12 and verification gates retain their behavior.
+
 ## 0.46.0 — 2026-11-12
 
 - Discovery now publishes each received X cursor together with its bounded report, preventing interrupted or rejected saves from advancing past unsaved announcements. Reserved attempts and received hard blockers remain durable even if report publication fails or cancellation races.

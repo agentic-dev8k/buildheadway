@@ -31,7 +31,7 @@ func TestDiscoveryCLIConfiguresWithoutNetworkModelsOrCredentialStorage(t *testin
 	if _, err := os.Stat(home); !os.IsNotExist(err) {
 		t.Fatal("read-only status created settings")
 	}
-	for _, args := range [][]string{{"setup", "--install="}, {"setup", "--install", "not-an-agent"}, {"freebies", "x-enable", "--token-env", "TEST_X_DISCOVERY_TOKEN", "--requests", "1"}, {"freebies", "status", "--requests", "1"}, {"freebies", "enable", "--interval", "1s"}} {
+	for _, args := range [][]string{{"setup", "--install="}, {"setup", "--install", "not-an-agent"}, {"freebies", "x-enable", "--token-env", "TEST_X_DISCOVERY_TOKEN", "--requests", "1"}, {"freebies", "status", "--requests", "1"}, {"freebies", "enable", "--interval", "1s"}, {"freebies", "watch", "--interval", "1s"}} {
 		run(false, args...)
 	}
 	if _, err := os.Stat(home); !os.IsNotExist(err) {
