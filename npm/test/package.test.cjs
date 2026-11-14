@@ -106,6 +106,17 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.match(preview, /80 more offers/);
   assert.deepEqual(JSON.parse(discovery(['freebies', 'status', '--json'])), freeState);
   assert.deepEqual(fs.readFileSync(freeStatePath), datedEvidence, 'terminal/JSON discovery inspection must not rewrite evidence');
+  const savedOffers = JSON.parse(discovery(['freebies', 'offers', '--source', 'catalog', '--search', 'CATALOG model 7', '--limit', '3', '--json']));
+  assert.equal(savedOffers.total, 100);
+  assert.equal(savedOffers.matched, 11);
+  assert.equal(savedOffers.query.limit, 3);
+  assert.deepEqual(savedOffers.offers.map(o => o.id), ['fixture/model-7', 'fixture/model-70', 'fixture/model-71']);
+  const announcement = JSON.parse(discovery(['freebies', 'offers', '--source', 'x', '--search', 'announcement 19', '--json']));
+  assert.equal(announcement.matched, 1);
+  assert.equal(announcement.offers[0].verification, 'unverified_announcement');
+  assert.equal(announcement.offers[0].observed_at, '2026-11-01T00:00:00Z');
+  assert.throws(() => discovery(['freebies', 'offers', '--limit', '0']));
+  assert.deepEqual(fs.readFileSync(freeStatePath), datedEvidence, 'offer filters must retain the original report, allowance and blocker bytes');
   const setup = JSON.parse(discovery(['setup', '--decline-install', '--json']));
   assert.equal(setup.policy.decline_install, true);
   assert.equal(fs.existsSync(path.join(discoveryHome, 'config', 'connection.json')), false);

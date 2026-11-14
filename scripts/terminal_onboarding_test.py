@@ -65,12 +65,16 @@ def run(binary, root):
         assert not (project / '.forge' / 'runs').exists()
         os.write(master, b'/freebies stop\r')
         wait_for(lambda: state().get('watch') is False, 'stop only discovery')
+        saved = (home / 'data' / 'freebies.json').read_bytes()
+        os.write(master, b'/freebies offers opencode\r')
+        wait_for(lambda: b'Saved offers' in transcript, 'filtered saved-offer inspection')
+        assert (home / 'data' / 'freebies.json').read_bytes() == saved, 'Offer inspection changed saved discovery'
         os.write(master, b'/quit\r')
         # A terminal can block its cleanup writes when the PTY is full,
         # especially on macOS. Drain it while retaining the five-second bound.
         wait_for(lambda: proc.poll() is not None, 'clean shutdown', timeout=5)
         assert proc.returncode == 0
-        print(json.dumps({'first_launch': 'inspected', 'package_review': 'visible', 'installation': 'declined', 'catalog': 'native fixture', 'x': 'disabled', 'watcher': 'stopped', 'models': 'not invoked'}))
+        print(json.dumps({'first_launch': 'inspected', 'package_review': 'visible', 'installation': 'declined', 'catalog': 'native fixture', 'offer_inspection': 'filtered and read-only', 'x': 'disabled', 'watcher': 'stopped', 'models': 'not invoked'}))
     finally:
         if proc.poll() is None:
             proc.terminate()
