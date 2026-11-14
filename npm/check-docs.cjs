@@ -7,7 +7,7 @@ const requiredDocs = [
   'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'docs/README.md', 'docs/credits.md', 'docs/onboarding.md',
   'docs/queue-delivery.md', 'docs/agents.md', 'docs/quickstart.md', 'docs/completions.md', 'docs/terminal.md', 'docs/install.md', 'docs/usage.md', 'docs/harness.md', 'docs/prompts.md', 'docs/extensions.md', 'docs/mcp.md', 'docs/browser.md',
   'docs/inputs.md', 'docs/task-updates.md', 'docs/branding.md', 'docs/maintainers/naming.md',
-  'docs/maintainers/publishing.md', 'docs/maintainers/validation.md',
+  'docs/maintainers/publishing.md', 'docs/maintainers/validation.md', 'docs/maintainers/roadmap.md',
 ];
 
 function prose(text) {
