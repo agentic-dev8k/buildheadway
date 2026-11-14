@@ -24,6 +24,7 @@
 - [Contributing](../CONTRIBUTING.md): development commands and test requirements.
 - [Publishing](maintainers/publishing.md): build artifacts and the separate publication steps.
 - [Validation record](maintainers/validation.md): executed checks, environment limits, and continuation notes.
+- [Development roadmap](maintainers/roadmap.md): priorities and acceptance requirements for continued improvement.
 - [Changelog](../CHANGELOG.md): user-visible changes by version.
 - [Branding](branding.md) and [identity compatibility](maintainers/naming.md).
 

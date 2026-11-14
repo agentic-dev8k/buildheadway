@@ -28,6 +28,26 @@ Discovery prefers the installed compatible OpenCode adapter's freshly refreshed 
 
 Reports retain at most 100 entries, including up to 20 deduplicated X announcements with their original observation times, including when a post is received again. Catalog prices are replaced each check rather than retained as fresh evidence. Terminal output shows at most 20 dated entries, reserving up to ten places for announcements so a large catalog cannot hide them. Remaining places show catalog entries, then any additional announcements. JSON returns the complete bounded report in its original order. `freebies status` performs no network/model call and does not rewrite saved state.
 
+## Search saved offers without another request
+
+```sh
+buildheadway freebies offers --source catalog --search "coding"
+buildheadway freebies offers --provider opencode --limit 50 --json
+buildheadway freebies offers --source x --search "promotion"
+```
+
+`offers` reads one complete saved report. It performs no network request, executable scan, model inference or X request reservation, and it preserves watcher preferences, budgets, blockers, connection settings and project checkpoints. With no saved state, it returns an empty listing without creating settings. Use `freebies check` separately when you want a refresh.
+
+| Source filter | Included saved entries |
+| --- | --- |
+| `all` (default) | Every saved source |
+| `catalog` | OpenCode native listings and models.dev metadata |
+| `x` | Unverified X announcements |
+
+Search is case insensitive and includes offer IDs, titles, providers, sources, verification labels and URLs. Queries accept at most 256 UTF-8 bytes without control characters. `--provider` selects an exact catalog provider identifier, also case insensitive. The default limit is 20; choose 1–100. Match counts describe all matches before the result limit, and saved ordering is retained. JSON includes the query, total saved count, matched count, report status and selected offers with their original observation times and verification labels. Existing `freebies status --json` still returns the complete saved state unchanged.
+
+Inside the terminal app, use `/freebies offers` or `/freebies offers SEARCH`, including during an active goal. The command palette includes this inspection. CLI filters are also available through shell completions. A saved listing does not refresh prices, prove account quota, authorize dispatch or make an announcement trustworthy.
+
 ## Optional X search is metered
 
 X's [official API pricing](https://docs.x.com/x-api/getting-started/pricing) is usage based. BuildHeadway cannot offer universally free X search, access private account benefits or promise unlimited free inference. No X credential or paid request is needed for the default catalog path. Cline's [free-model promotions](https://docs.cline.bot/getting-started/free-models) rotate and have their own account and quota limits; Cline is not an automatically verified zero-price implementation worker.
