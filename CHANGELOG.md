@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.48.0 — 2026-11-14
+
+- Added `freebies offers` for read-only saved-offer inspection with case-insensitive text search, catalog/X source selection, exact provider filtering, a bounded result limit and structured JSON match counts. Saved ordering, observation times, verification labels and status errors remain visible; inspection performs no network/model calls or X reservations.
+- Added `/freebies offers [SEARCH]` during active terminal goals, command-palette discovery and syntax-only shell completions. Query validation rejects malformed UTF-8, controls and invalid bounds; terminal output strips control sequences without rewriting saved evidence.
+- Added native CLI, active-goal/draft, installed-package and actual terminal regressions. Empty inspection creates no settings, and filters preserve the original report, watcher, attempt allowances, provider blockers and checkpoints. Existing full-state JSON and all dispatch/acceptance gates are unchanged.
+- Added a development roadmap with concrete acceptance requirements for reliability, provider compatibility, goal/queue visibility, extensions and distribution.
+
 ## 0.47.0 — 2026-11-12
 
 - Discovery watchers acquire exclusive ownership before enabling or changing their saved preferences. A competing CLI or terminal-app start is rejected without disabling the active watcher, changing its interval or creating a second local watcher.

@@ -105,6 +105,9 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	if len(args) > 0 && len(args[0]) > 0 && args[0][0] != '-' {
 		action, args = args[0], args[1:]
 	}
+	if action == "offers" {
+		return runFreebieOffersCommand(paths, args)
+	}
 	f := flag.NewFlagSet("buildheadway freebies "+action, flag.ContinueOnError)
 	asJSON := f.Bool("json", false, "Output JSON")
 	interval := f.Duration("interval", 30*time.Minute, "Discovery interval, 15m–24h (enable/watch only)")
@@ -183,7 +186,7 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	case "x-disable":
 		err = mutateFreebies(paths, func(s *FreebieState) error { s.X.Enabled = false; return nil })
 	default:
-		return fail(errors.New("use freebies status, check, watch, enable, disable, x-enable or x-disable"))
+		return fail(errors.New("use freebies status, offers, check, watch, enable, disable, x-enable or x-disable"))
 	}
 	if err != nil {
 		return fail(err)
