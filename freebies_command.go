@@ -22,19 +22,29 @@ func configureFreebieWatch(paths Paths, enabled bool, interval time.Duration) er
 	})
 }
 
-func watchFreebies(ctx context.Context, paths Paths, onReport func(FreebieState)) error {
-	return watchFreebiesWith(ctx, paths, onReport, func(ctx context.Context, p Paths) (FreebieReport, error) { return checkFreebies(ctx, p, nil) })
+func acquireFreebieWatch(paths Paths) (*os.File, error) {
+	if err := paths.Ensure(); err != nil {
+		return nil, err
+	}
+	return acquireProjectLock(paths.Data, "freebies-watch", false)
+}
+
+// The caller owns the watcher lock before changing its saved preferences and
+// keeps it through any exit cleanup. A rejected start cannot stop its owner.
+func watchFreebiesLocked(ctx context.Context, paths Paths, onReport func(FreebieState)) error {
+	return watchFreebieLoop(ctx, paths, onReport, func(ctx context.Context, p Paths) (FreebieReport, error) { return checkFreebies(ctx, p, nil) })
 }
 
 func watchFreebiesWith(ctx context.Context, paths Paths, onReport func(FreebieState), check func(context.Context, Paths) (FreebieReport, error)) error {
-	if err := paths.Ensure(); err != nil {
-		return err
-	}
-	lock, err := acquireProjectLock(paths.Data, "freebies-watch", false)
+	lock, err := acquireFreebieWatch(paths)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
+	return watchFreebieLoop(ctx, paths, onReport, check)
+}
+
+func watchFreebieLoop(ctx context.Context, paths Paths, onReport func(FreebieState), check func(context.Context, Paths) (FreebieReport, error)) error {
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -122,6 +132,9 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	if invalid {
 		return fail(errors.New("these flags do not apply to the chosen freebie action"))
 	}
+	if (action == "enable" || action == "watch") && (*interval < 15*time.Minute || *interval > 24*time.Hour) {
+		return fail(errors.New("discovery interval must be between 15m and 24h"))
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	var err error
@@ -129,19 +142,28 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	case "status":
 	case "check":
 		_, err = checkFreebies(ctx, paths, nil)
-	case "enable", "watch":
+	case "enable":
 		err = configureFreebieWatch(paths, true, *interval)
-		if err == nil && action == "watch" {
-			defer func() { _ = mutateFreebies(paths, func(s *FreebieState) error { s.Watch = false; return nil }) }()
-			err = watchFreebies(ctx, paths, func(s FreebieState) { _ = outputValue(s, formatFreebies(s), *asJSON) })
-			if errors.Is(err, context.Canceled) {
-				return 0
-			}
-			if err != nil {
-				return fail(err)
-			}
-			return 0
+	case "watch":
+		lock, lockErr := acquireFreebieWatch(paths)
+		if lockErr != nil {
+			return fail(lockErr)
 		}
+		defer lock.Close()
+		if err := configureFreebieWatch(paths, true, *interval); err != nil {
+			return fail(err)
+		}
+		err = watchFreebiesLocked(ctx, paths, func(s FreebieState) { _ = outputValue(s, formatFreebies(s), *asJSON) })
+		if errors.Is(err, context.Canceled) {
+			err = nil
+		}
+		// Retain ownership until cleanup is durable. Otherwise a replacement
+		// watcher could enable itself just before this process disables it.
+		stopErr := mutateFreebies(paths, func(s *FreebieState) error { s.Watch = false; return nil })
+		if err := errors.Join(err, stopErr); err != nil {
+			return fail(err)
+		}
+		return 0
 	case "disable":
 		err = mutateFreebies(paths, func(s *FreebieState) error { s.Watch = false; return nil })
 	case "x-enable":
@@ -203,12 +225,19 @@ func (m *appModel) startFreebieWatch() tea.Cmd {
 		m.add("Discovery", "The free-offer watcher is already running.")
 		return nil
 	}
-	state, err := readFreebies(m.paths)
+	lock, err := acquireFreebieWatch(m.paths)
 	if err != nil {
 		m.add("Discovery", err.Error())
 		return nil
 	}
+	state, err := readFreebies(m.paths)
+	if err != nil {
+		lock.Close()
+		m.add("Discovery", err.Error())
+		return nil
+	}
 	if err := configureFreebieWatch(m.paths, true, time.Duration(state.IntervalSeconds)*time.Second); err != nil {
+		lock.Close()
 		m.add("Discovery", err.Error())
 		return nil
 	}
@@ -220,7 +249,8 @@ func (m *appModel) startFreebieWatch() tea.Cmd {
 	m.add("Discovery", "Watching official free-model catalogs while BuildHeadway is open. X search stays disabled unless explicitly configured with a metered request budget. /freebies stop disables this watcher; coding goals keep their own budgets and blockers.")
 	go func() {
 		defer close(done)
-		err := watchFreebies(ctx, paths, func(s FreebieState) {
+		defer lock.Close()
+		err := watchFreebiesLocked(ctx, paths, func(s FreebieState) {
 			select {
 			case events <- Event{Kind: "freebies", Value: freebieInspectionMsg{s, nil}}:
 			case <-ctx.Done():
