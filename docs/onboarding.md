@@ -73,3 +73,5 @@ Authentication/payment/permission/quota responses (401/402/403/429) latch a bloc
 X posts are labeled `unverified_announcement` and link only to their X status page. Their URLs, commands and claims are never followed, installed, executed, added to agent prompts or used to change selected models. Discovery cannot resume a blocked goal, rotate around account quotas or supply acceptance evidence. Review offers independently and approve only a supported installation you want.
 
 Every free dispatch/retry still refreshes prices independently. Explicit model choices, cumulative budgets, authentication/quota/payment/policy/cost/output/MCP blockers, executed meaningful acceptance checks, unchanged verification snapshots and fresh senior approval remain required. Checkpoint v12 is unchanged. See [agent compatibility](agents.md), the [harness](harness.md) and [terminal usage](usage.md).
+
+Terminal previews sanitize control characters in saved status fields, errors, identifiers, dates and URLs. This presentation does not rewrite saved evidence; JSON inspection retains original values. Unicode text remains supported and displayed URLs retain the existing 2048-byte bound.
