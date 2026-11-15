@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const freebieCatalogURL = "https://models.dev/api.json"
@@ -188,13 +189,18 @@ func exactZeroCost(v any) bool {
 	}
 }
 func freebieTitle(s string) string {
+	return freebieTerminalLine(s, 512)
+}
+
+// Render saved/untrusted evidence as one inert line without rewriting it.
+func freebieTerminalLine(s string, limit int) string {
 	s = strings.Map(func(r rune) rune {
-		if r < 32 || r == 127 {
+		if unicode.IsControl(r) {
 			return ' '
 		}
 		return r
 	}, Clean(s))
-	s, _ = evidenceExcerpt(strings.TrimSpace(s), 512)
+	s, _ = evidenceExcerpt(strings.TrimSpace(s), limit)
 	return s
 }
 func catalogFreebies(data []byte, at string) ([]FreebieOffer, error) {
@@ -515,24 +521,24 @@ func mergeXAnnouncements(current, previous []FreebieOffer) []FreebieOffer {
 func formatFreebies(s FreebieState) string {
 	r := s.Report
 	var out strings.Builder
-	fmt.Fprintf(&out, "Free-offer discovery · watch on app launch: %t · every %s\nCatalog: %s · X: %s\n", s.Watch, time.Duration(s.IntervalSeconds)*time.Second, r.CatalogStatus, r.XStatus)
+	fmt.Fprintf(&out, "Free-offer discovery · watch on app launch: %t · every %s\nCatalog: %s · X: %s\n", s.Watch, time.Duration(s.IntervalSeconds)*time.Second, freebieTitle(r.CatalogStatus), freebieTitle(r.XStatus))
 	if r.CheckedAt != "" {
-		fmt.Fprintf(&out, "Checked: %s\n", r.CheckedAt)
+		fmt.Fprintf(&out, "Checked: %s\n", freebieTitle(r.CheckedAt))
 	}
 	if r.CatalogError != "" {
-		fmt.Fprintf(&out, "Catalog: %s\n", r.CatalogError)
+		fmt.Fprintf(&out, "Catalog: %s\n", freebieTitle(r.CatalogError))
 	}
 	if r.XError != "" {
-		fmt.Fprintf(&out, "X: %s\n", r.XError)
+		fmt.Fprintf(&out, "X: %s\n", freebieTitle(r.XError))
 	}
 	if s.X.Enabled {
 		fmt.Fprintf(&out, "X request attempts: %d/%d (persistent, not a dollar spending cap)\n", s.X.UsedRequests, s.X.AllowedRequests)
 	}
 	preview := freebiePreview(r.Offers)
 	for _, o := range preview {
-		fmt.Fprintf(&out, "\n%s · %s\n%s\n%s\n", o.Title, o.Verification, o.ID, o.URL)
+		fmt.Fprintf(&out, "\n%s · %s\n%s\n%s\n", freebieTitle(o.Title), freebieTitle(o.Verification), freebieTitle(o.ID), freebieTerminalLine(o.URL, 2048))
 		if o.ObservedAt != "" {
-			fmt.Fprintf(&out, "Observed: %s\n", o.ObservedAt)
+			fmt.Fprintf(&out, "Observed: %s\n", freebieTitle(o.ObservedAt))
 		}
 	}
 	if len(r.Offers) > len(preview) {

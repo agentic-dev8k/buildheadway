@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.49.0 — 2026-11-15
+
+- Saved discovery status and offer inspection now render all report fields and URLs as bounded, inert terminal lines, including C1 controls missed by ASCII-only sanitization. Ordinary Unicode and complete valid URLs retain their existing bounds.
+- Native CLI regression coverage reproduces the control-sequence output and requires original JSON and saved bytes to remain unchanged. This presentation correction makes no network/model requests and changes no checkpoints, budgets or verification gates.
+
 ## 0.48.0 — 2026-11-14
 
 - Added `freebies offers` for read-only saved-offer inspection with case-insensitive text search, catalog/X source selection, exact provider filtering, a bounded result limit and structured JSON match counts. Saved ordering, observation times, verification labels and status errors remain visible; inspection performs no network/model calls or X reservations.
