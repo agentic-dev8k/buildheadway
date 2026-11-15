@@ -102,7 +102,7 @@ func formatFreebieOffers(listing FreebieOfferListing) string {
 		out.WriteString("\nNo saved offers match these filters.\n")
 	}
 	for _, offer := range listing.Offers {
-		fmt.Fprintf(&out, "\n%s · %s · %s\n%s\n%s\n", freebieTitle(offer.Title), freebieTitle(offer.Source), freebieTitle(offer.Verification), freebieTitle(offer.ID), offer.URL)
+		fmt.Fprintf(&out, "\n%s · %s · %s\n%s\n%s\n", freebieTitle(offer.Title), freebieTitle(offer.Source), freebieTitle(offer.Verification), freebieTitle(offer.ID), freebieTerminalLine(offer.URL, 2048))
 		if offer.ObservedAt != "" {
 			fmt.Fprintf(&out, "Observed: %s\n", freebieTitle(offer.ObservedAt))
 		}

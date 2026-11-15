@@ -9,7 +9,59 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"unicode"
 )
+
+func TestDiscoveryCLIUntrustedSavedTextCannotControlTerminal(t *testing.T) {
+	paths := testPaths(t)
+	unsafe := "saved\x1b[2J\u009b31m\u009d52;clipboard\a\rtext"
+	if err := mutateFreebies(paths, func(s *FreebieState) error {
+		s.Report = FreebieReport{CheckedAt: unsafe, CatalogStatus: unsafe, CatalogError: unsafe, XStatus: unsafe, XError: unsafe, Offers: []FreebieOffer{{ID: unsafe, Source: "x", Title: unsafe, Verification: unsafe, ObservedAt: unsafe, URL: "https://example.invalid/\u009d52;clipboard"}}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(freebieStatePath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"freebies", "status"}, {"freebies", "offers"}} {
+		cmd := exec.Command(nativeTestBinary(t), args...)
+		cmd.Env = testCommandEnv(filepath.Dir(paths.Data))
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err, string(out))
+		}
+		for _, r := range string(out) {
+			if unicode.IsControl(r) && r != '\n' {
+				t.Fatalf("%v emitted terminal control U+%04X", args, r)
+			}
+		}
+		if !bytes.Contains(out, []byte("https://example.invalid/")) {
+			t.Fatal("lost offer URL")
+		}
+	}
+	cmd := exec.Command(nativeTestBinary(t), "freebies", "status", "--json")
+	cmd.Env = testCommandEnv(filepath.Dir(paths.Data))
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved, inspected FreebieState
+	if err := json.Unmarshal(before, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out, &inspected); err != nil {
+		t.Fatal(err)
+	}
+	if inspected.Report.CheckedAt != unsafe || inspected.Report.Offers[0].URL != saved.Report.Offers[0].URL {
+		t.Fatal("JSON inspection rewrote original evidence")
+	}
+	after, err := os.ReadFile(freebieStatePath(paths))
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("inspection changed saved bytes", err)
+	}
+}
 
 func TestDiscoveryOffersCLIInspectsSavedOffersWithoutChangingEvidence(t *testing.T) {
 	binary := nativeTestBinary(t)
