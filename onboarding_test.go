@@ -140,3 +140,42 @@ func TestDeclinedExistingAgentCannotDownloadRuntimePrerequisite(t *testing.T) {
 		t.Fatal("reviewed prerequisite unavailable", err, calls)
 	}
 }
+
+func TestSetupInspectionExplainsSavedInstallationPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		policy SetupPolicy
+		want   []string
+	}{
+		{SetupPolicy{Version: 1}, []string{"Installation policy: automatic setup allowed", "Explicit approvals: none"}},
+		{SetupPolicy{Version: 1, DeclineInstall: true}, []string{"Installation policy: automatic setup declined", "Explicit approvals: none", "setup --install AGENT"}},
+		{SetupPolicy{Version: 1, DeclineInstall: true, Approved: []string{"opencode"}}, []string{"Installation policy: automatic setup declined", "Explicit approvals: opencode", "only to the named agents"}},
+	} {
+		paths := testPaths(t)
+		if err := updateSetupPolicy(paths, tc.policy.DeclineInstall, tc.policy.Approved); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(filepath.Join(paths.Data, "setup-policy.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := readSetupPolicy(paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := formatSetup(SetupInspection{OS: "fixture", Arch: "fixture", Policy: policy})
+		for _, want := range tc.want {
+			if !strings.Contains(text, want) {
+				t.Errorf("missing %q: %s", want, text)
+			}
+		}
+		after, err := os.ReadFile(filepath.Join(paths.Data, "setup-policy.json"))
+		if err != nil || string(before) != string(after) {
+			t.Fatal("inspection changed policy", err)
+		}
+		if tc.policy.DeclineInstall {
+			if err := checkInstallationPolicy(paths, []string{"cline"}, true); err == nil {
+				t.Fatal("inspection widened permission")
+			}
+		}
+	}
+}

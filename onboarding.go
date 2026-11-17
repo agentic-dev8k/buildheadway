@@ -160,6 +160,19 @@ func inspectSetup(ctx context.Context, paths Paths) (SetupInspection, error) {
 func formatSetup(s SetupInspection) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "Setup inspection · %s/%s\n\n%s\n", s.OS, s.Arch, FormatInventory(s.Inventory))
+	policy := "automatic setup allowed (no saved refusal)"
+	if s.Policy.DeclineInstall {
+		policy = "automatic setup declined"
+	}
+	fmt.Fprintf(&out, "\nInstallation policy: %s\n", policy)
+	approvals := "none"
+	if len(s.Policy.Approved) > 0 {
+		approvals = strings.Join(s.Policy.Approved, ", ")
+	}
+	fmt.Fprintf(&out, "Explicit approvals: %s\n", approvals)
+	if s.Policy.DeclineInstall {
+		out.WriteString("Approvals apply only to the named agents; other installations remain declined. Review /connect or use buildheadway setup --install AGENT to approve a specific installation.\n")
+	}
 	for _, id := range []string{"node", "npm", "git"} {
 		v := s.Tools[id]
 		if v == "" {
