@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -48,6 +49,21 @@ func TestDiscoveryCLIConfiguresWithoutNetworkModelsOrCredentialStorage(t *testin
 		t.Fatal(state)
 	}
 	run(true, "setup", "--decline-install", "--json")
+	policyPath := filepath.Join(home, "data", "setup-policy.json")
+	policyBefore, err := os.ReadFile(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(run(true, "setup"))
+	for _, want := range []string{"Installation policy: automatic setup declined", "Explicit approvals: none", "setup --install AGENT"} {
+		if !strings.Contains(text, want) {
+			t.Fatal("terminal inspection hid saved policy", want, text)
+		}
+	}
+	policyAfter, err := os.ReadFile(policyPath)
+	if err != nil || !bytes.Equal(policyBefore, policyAfter) {
+		t.Fatal("inspection changed policy", err)
+	}
 	path := filepath.Join(home, "data", "freebies.json")
 	before, err := os.ReadFile(path)
 	if err != nil || bytes.Contains(before, []byte("NEVER_SAVE_THIS_VALUE")) {

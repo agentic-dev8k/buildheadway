@@ -1,3 +1,8 @@
+## 0.51.0 — 2026-11-17
+
+- Setup inspection displays the saved automatic-installation policy and named approvals, with a specific approval command after refusal. Inspection preserves consent, settings and connections; interactive package review and existing headless behavior remain unchanged.
+- Added native CLI, policy-boundary and installed-package regression coverage for visible refusal and unchanged policy bytes.
+
 ## 0.50.0 — 2026-11-17
 
 - Discovery status and saved-offer views distinguish the age of the latest check attempt from each retained offer's observation age. Missing, invalid and future timestamps remain explicitly unknown; a new check cannot make old announcements look newly observed. Original dates, JSON, evidence, pricing and access gates remain intact.
