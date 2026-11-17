@@ -8,7 +8,7 @@ buildheadway scan --check --agent cline
 buildheadway scan --models --agent opencode
 ```
 
-Add `--json` for scripts. `--agent NAME` selects one agent. Missing or incompatible explicitly selected agents exit nonzero. `--models` also checks compatibility and exits nonzero if the selected agent has no supported, verified free catalog. Without a selector, expected missing agents and detection-only entries do not fail the inventory; installed incompatible adapters and a failed OpenCode catalog do.
+Add `--json` for scripts. `--agent NAME` limits discovery and version probes to that registered agent. Unknown names are rejected before any agent executable runs. An ordinary scan without a selector still probes the full inventory. Missing or incompatible explicitly selected agents exit nonzero with `--check` or `--models`; a plain inventory only reports installation state. `--models` also checks compatibility and exits nonzero if the selected agent has no supported, verified free catalog. Without a selector, expected missing agents and detection-only entries do not fail the inventory; installed incompatible adapters and a failed OpenCode catalog do.
 
 The plain scan reports paths and versions. `--check` probes required CLI controls without a model call. `--models` refreshes OpenCode's catalog and lists only tool-capable models with explicit zero input/output prices and no nonzero listed cache or other charges. Its `checked_at` is the time of this inspection. It does not test authentication, quota, latency, or successful inference. These diagnostics do not change project files, checkpoints, connections or model selection; the upstream CLI may maintain its own catalog cache.
 
