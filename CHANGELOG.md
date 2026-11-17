@@ -1,3 +1,8 @@
+## 0.50.0 — 2026-11-17
+
+- Discovery status and saved-offer views distinguish the age of the latest check attempt from each retained offer's observation age. Missing, invalid and future timestamps remain explicitly unknown; a new check cannot make old announcements look newly observed. Original dates, JSON, evidence, pricing and access gates remain intact.
+- Added real CLI, active-terminal and installed-package coverage for read-only age inspection, with deterministic boundary and clock-skew tests.
+
 # Changelog
 
 ## 0.49.0 — 2026-11-15

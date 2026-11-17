@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"unicode"
@@ -147,5 +148,36 @@ func TestDiscoveryOffersCLIWithNoSavedStateIsReadOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(home); !os.IsNotExist(err) {
 		t.Fatal("empty offer inspection created user settings")
+	}
+}
+
+func TestDiscoveryCLIDistinguishesCheckAgeFromRetainedOfferAge(t *testing.T) {
+	paths := testPaths(t)
+	if err := mutateFreebies(paths, func(s *FreebieState) error {
+		s.Report = FreebieReport{CheckedAt: time.Now().UTC().Format(time.RFC3339Nano), CatalogStatus: "error", CatalogError: "provider unavailable", XStatus: "blocked", Offers: []FreebieOffer{{ID: "x/1", Source: "x", Title: "retained announcement", Verification: "unverified_announcement", URL: "https://example.invalid/1", ObservedAt: "2000-01-01T00:00:00Z"}}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(freebieStatePath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"freebies", "status"}, {"freebies", "offers"}} {
+		cmd := exec.Command(nativeTestBinary(t), args...)
+		cmd.Env = testCommandEnv(filepath.Dir(paths.Data))
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err, string(out))
+		}
+		for _, want := range []string{"Last check age: less than 1m ago", "Observed age: over 365d ago", "provider unavailable", "unverified_announcement"} {
+			if !strings.Contains(string(out), want) {
+				t.Fatalf("%v omitted %q: %s", args, want, out)
+			}
+		}
+	}
+	after, err := os.ReadFile(freebieStatePath(paths))
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("age inspection changed evidence", err)
 	}
 }
