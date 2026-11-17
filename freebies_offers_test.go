@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDiscoveryOfferQueriesRejectAmbiguityAndPreserveLimits(t *testing.T) {
@@ -57,7 +58,7 @@ func TestDiscoveryOfferInspectionPreservesActiveTerminalWork(t *testing.T) {
 		t.Fatal("saved-offer inspection changed an active goal, watcher or draft")
 	}
 	last := m.entries[len(m.entries)-1].Text
-	if !strings.Contains(last, "مفت discovery") || !strings.Contains(last, "unverified_announcement") || !strings.Contains(last, "2026-11-01T00:00:00Z") {
+	if !strings.Contains(last, "مفت discovery") || !strings.Contains(last, "unverified_announcement") || !strings.Contains(last, "2026-11-01T00:00:00Z") || !strings.Contains(last, "Observed age:") {
 		t.Fatal("terminal search omitted saved evidence", last)
 	}
 	after, err := os.ReadFile(freebieStatePath(paths))
@@ -67,5 +68,32 @@ func TestDiscoveryOfferInspectionPreservesActiveTerminalWork(t *testing.T) {
 	choices := completionCandidates([]string{"freebies", "offers", "--source", ""})
 	if len(choices) != 3 || !contains(choices, "all") || !contains(choices, "catalog") || !contains(choices, "x") {
 		t.Fatal("source completion lost the supported choices", choices)
+	}
+}
+
+func TestDiscoveryAgeBoundariesAndClockSkew(t *testing.T) {
+	now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct{ stamp, want string }{
+		{"", "unknown (timestamp missing)"}, {"bad\x1b[2J", "unknown (invalid timestamp)"},
+		{now.Add(time.Nanosecond).Format(time.RFC3339Nano), "unknown (future timestamp; check system clock)"},
+		{now.Format(time.RFC3339Nano), "less than 1m ago"},
+		{now.Add(-59 * time.Second).Format(time.RFC3339Nano), "less than 1m ago"},
+		{now.Add(-time.Minute).Format(time.RFC3339Nano), "1m ago"},
+		{now.Add(-time.Hour).Format(time.RFC3339Nano), "1h 0m ago"},
+		{now.Add(-24 * time.Hour).Format(time.RFC3339Nano), "1d 0h ago"},
+		{now.Add(-365 * 24 * time.Hour).Format(time.RFC3339Nano), "365d 0h ago"},
+		{"0001-01-01T00:00:00Z", "over 365d ago"},
+		{"2026-11-17T14:00:00+02:00", "less than 1m ago"},
+	} {
+		if got := freebieAge(tc.stamp, now); got != tc.want {
+			t.Errorf("%q: got %q want %q", tc.stamp, got, tc.want)
+		}
+	}
+	listing := FreebieOfferListing{CheckedAt: now.Format(time.RFC3339Nano), Offers: []FreebieOffer{{ObservedAt: "2000-01-01T00:00:00Z"}, {ObservedAt: "2999-01-01T00:00:00Z"}, {}}}
+	text := formatFreebieOffersAt(listing, now)
+	for _, want := range []string{"Last check age: less than 1m ago (check attempt, not offer freshness)", "Observed age: over 365d ago", "Observed age: unknown (future timestamp; check system clock)", "Observed age: unknown (timestamp missing)"} {
+		if !strings.Contains(text, want) {
+			t.Error("missing", want, text)
+		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -85,11 +86,15 @@ func inspectFreebieOffers(paths Paths, query FreebieOfferQuery) (FreebieOfferLis
 }
 
 func formatFreebieOffers(listing FreebieOfferListing) string {
+	return formatFreebieOffersAt(listing, time.Now())
+}
+func formatFreebieOffersAt(listing FreebieOfferListing, now time.Time) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "Saved offers · showing %d of %d matches · %d saved\nCatalog: %s · X: %s\n", len(listing.Offers), listing.Matched, listing.Total, freebieTitle(listing.CatalogStatus), freebieTitle(listing.XStatus))
 	if listing.CheckedAt != "" {
 		fmt.Fprintf(&out, "Report checked: %s\n", freebieTitle(listing.CheckedAt))
 	}
+	fmt.Fprintf(&out, "Last check age: %s (check attempt, not offer freshness)\n", freebieAge(listing.CheckedAt, now))
 	if listing.CatalogError != "" {
 		fmt.Fprintf(&out, "Catalog: %s\n", freebieTitle(listing.CatalogError))
 	}
@@ -106,6 +111,7 @@ func formatFreebieOffers(listing FreebieOfferListing) string {
 		if offer.ObservedAt != "" {
 			fmt.Fprintf(&out, "Observed: %s\n", freebieTitle(offer.ObservedAt))
 		}
+		fmt.Fprintf(&out, "Observed age: %s\n", freebieAge(offer.ObservedAt, now))
 	}
 	if listing.Matched > len(listing.Offers) {
 		fmt.Fprintf(&out, "\n%d more matches; increase --limit up to 100.\n", listing.Matched-len(listing.Offers))

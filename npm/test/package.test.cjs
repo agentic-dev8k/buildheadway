@@ -104,6 +104,9 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.doesNotMatch(preview, /[\u001b\u007f-\u009f]/);
   assert.doesNotMatch(discovery(['freebies', 'offers']).toString(), /[\u001b\u007f-\u009f]/);
   assert.match(preview, /Retained announcement 0/);
+  assert.match(preview, /Last check age: .*ago \(check attempt, not offer freshness\)/);
+  assert.match(preview, /Observed age: .*ago/);
+  assert.match(discovery(['freebies', 'offers', '--source', 'x']).toString(), /Observed age: .*ago/);
   assert.match(preview, /Observed: 2026-11-01T00:00:00Z/);
   assert.equal((preview.match(/· unverified_announcement/g) || []).length, 10);
   assert.equal((preview.match(/· catalog_only/g) || []).length, 10);

@@ -518,13 +518,45 @@ func mergeXAnnouncements(current, previous []FreebieOffer) []FreebieOffer {
 	return result
 }
 
+// Age is presentation only: a check attempt can be newer than retained offers.
+// Missing, invalid and future dates never acquire an implied fresh observation.
+func freebieAge(stamp string, now time.Time) string {
+	if stamp == "" {
+		return "unknown (timestamp missing)"
+	}
+	at, err := time.Parse(time.RFC3339Nano, stamp)
+	if err != nil {
+		return "unknown (invalid timestamp)"
+	}
+	if at.After(now) {
+		return "unknown (future timestamp; check system clock)"
+	}
+	age := now.Sub(at)
+	switch {
+	case age < time.Minute:
+		return "less than 1m ago"
+	case age < time.Hour:
+		return fmt.Sprintf("%dm ago", int(age/time.Minute))
+	case age < 24*time.Hour:
+		return fmt.Sprintf("%dh %dm ago", int(age/time.Hour), int(age/time.Minute)%60)
+	case age <= 365*24*time.Hour:
+		return fmt.Sprintf("%dd %dh ago", int(age/(24*time.Hour)), int(age/time.Hour)%24)
+	default:
+		return "over 365d ago"
+	}
+}
+
 func formatFreebies(s FreebieState) string {
+	return formatFreebiesAt(s, time.Now())
+}
+func formatFreebiesAt(s FreebieState, now time.Time) string {
 	r := s.Report
 	var out strings.Builder
 	fmt.Fprintf(&out, "Free-offer discovery · watch on app launch: %t · every %s\nCatalog: %s · X: %s\n", s.Watch, time.Duration(s.IntervalSeconds)*time.Second, freebieTitle(r.CatalogStatus), freebieTitle(r.XStatus))
 	if r.CheckedAt != "" {
 		fmt.Fprintf(&out, "Checked: %s\n", freebieTitle(r.CheckedAt))
 	}
+	fmt.Fprintf(&out, "Last check age: %s (check attempt, not offer freshness)\n", freebieAge(r.CheckedAt, now))
 	if r.CatalogError != "" {
 		fmt.Fprintf(&out, "Catalog: %s\n", freebieTitle(r.CatalogError))
 	}
@@ -540,6 +572,7 @@ func formatFreebies(s FreebieState) string {
 		if o.ObservedAt != "" {
 			fmt.Fprintf(&out, "Observed: %s\n", freebieTitle(o.ObservedAt))
 		}
+		fmt.Fprintf(&out, "Observed age: %s\n", freebieAge(o.ObservedAt, now))
 	}
 	if len(r.Offers) > len(preview) {
 		fmt.Fprintf(&out, "\n%d more offers; use freebies status --json for the complete bounded report.\n", len(r.Offers)-len(preview))
