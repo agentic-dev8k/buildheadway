@@ -778,6 +778,18 @@ else if (args.includes('models') && args.includes('--refresh') && args.includes(
     fs.copyFileSync(agentScript, path.join(agentTools, 'opencode'));
     fs.chmodSync(path.join(agentTools, 'opencode'), 0o755);
   }
+  const unselectedProbe = path.join(root, 'unselected-agent-probed.txt');
+  const unselectedScript = path.join(agentTools, 'unselected-fixture.cjs');
+  fs.writeFileSync(unselectedScript, `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(unselectedProbe)}, 'version probe\\n');
+console.log('unselected-agent-fixture');
+`, {mode:0o755});
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(agentTools, 'codex.cmd'), '@"' + process.execPath + '" "%~dp0\\unselected-fixture.cjs" %*\r\n');
+  } else {
+    fs.copyFileSync(unselectedScript, path.join(agentTools, 'codex'));
+    fs.chmodSync(path.join(agentTools, 'codex'), 0o755);
+  }
   const scanOptions = { ...options, env: { ...env, BUILDHEADWAY_AGENT_PATH: agentTools } };
   const scanRead = args => execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), 'scan', ...args], scanOptions);
   const beforeScan = fs.readFileSync(path.join(runDir, 'state.json'));
@@ -795,6 +807,10 @@ else if (args.includes('models') && args.includes('--refresh') && args.includes(
   for (const args of [['--agent', ''], ['--agent', 'unknown'], ['--typo']]) {
     assert.throws(() => scanRead(args), error => error.status !== 0);
   }
+  assert.equal(fs.existsSync(unselectedProbe), false, 'targeted or invalid scans must not execute another installed agent');
+  const completeInventory = JSON.parse(scanRead(['--json']));
+  assert.equal(completeInventory.agents.find(a => a.id === 'codex').installed, true);
+  assert.ok(fs.existsSync(unselectedProbe), 'ordinary inventory must still probe other installed agents');
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeScan);
   // Exercise the delivered launcher and an actual hanging child, not a mock
   // invocation return: a received cost blocks before the runtime deadline.

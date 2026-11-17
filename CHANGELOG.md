@@ -1,3 +1,10 @@
+# Changelog
+
+## 0.52.0 — 2026-11-17
+
+- Targeted `scan --agent NAME` probes only the selected registered agent. Unknown names fail before executable discovery, preventing unrelated installed CLIs from running during invalid or focused diagnostics. Unfiltered inventory retains the full registry and display order.
+- Native CLI and installed-package regressions verify no unrelated probes, fresh selected-model catalog checks, detection-only failure semantics, unchanged saved state and retained full inventory behavior. No pricing, authentication or dispatch gate is relaxed.
+
 ## 0.51.0 — 2026-11-17
 
 - Setup inspection displays the saved automatic-installation policy and named approvals, with a specific approval command after refusal. Inspection preserves consent, settings and connections; interactive package review and existing headless behavior remain unchanged.
@@ -7,8 +14,6 @@
 
 - Discovery status and saved-offer views distinguish the age of the latest check attempt from each retained offer's observation age. Missing, invalid and future timestamps remain explicitly unknown; a new check cannot make old announcements look newly observed. Original dates, JSON, evidence, pricing and access gates remain intact.
 - Added real CLI, active-terminal and installed-package coverage for read-only age inspection, with deterministic boundary and clock-skew tests.
-
-# Changelog
 
 ## 0.49.0 — 2026-11-15
 

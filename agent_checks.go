@@ -122,16 +122,22 @@ func runScanCommand(paths Paths, args []string) int {
 	if emptySelection {
 		return fail(errors.New("--agent requires a nonempty agent name"))
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-	inventory := ScanAgents(ctx, paths)
+	definitions := Registry
 	if *selected != "" {
-		agent, ok := inventory.Find(*selected)
-		if !ok {
+		definitions = nil
+		for _, definition := range Registry {
+			if definition.ID == *selected {
+				definitions = []AgentDefinition{definition}
+				break
+			}
+		}
+		if len(definitions) == 0 {
 			return fail(fmt.Errorf("unknown agent %q", *selected))
 		}
-		inventory.Agents = []DetectedAgent{agent}
 	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	inventory := scanAgents(ctx, paths, definitions)
 	failed := false
 	if *check || *models {
 		for i := range inventory.Agents {

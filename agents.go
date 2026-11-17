@@ -192,9 +192,15 @@ func Clean(text string) string {
 	}, text)
 }
 func ScanAgents(ctx context.Context, paths Paths) Inventory {
-	out := Inventory{OS: runtime.GOOS, Arch: runtime.GOARCH, Agents: make([]DetectedAgent, len(Registry))}
+	return scanAgents(ctx, paths, Registry)
+}
+
+// The caller selects registered definitions before any executable is probed.
+// A full inventory retains the registry order and its concurrent version probes.
+func scanAgents(ctx context.Context, paths Paths, definitions []AgentDefinition) Inventory {
+	out := Inventory{OS: runtime.GOOS, Arch: runtime.GOARCH, Agents: make([]DetectedAgent, len(definitions))}
 	var wg sync.WaitGroup
-	for index, definition := range Registry {
+	for index, definition := range definitions {
 		wg.Add(1)
 		go func(index int, definition AgentDefinition) {
 			defer wg.Done()
