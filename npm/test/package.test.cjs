@@ -126,6 +126,13 @@ test('the real release package installs, launches, upgrades, and uninstalls with
   assert.deepEqual(fs.readFileSync(freeStatePath), datedEvidence, 'offer filters must retain the original report, allowance and blocker bytes');
   const setup = JSON.parse(discovery(['setup', '--decline-install', '--json']));
   assert.equal(setup.policy.decline_install, true);
+  const policyPath = path.join(discoveryHome, 'data', 'setup-policy.json');
+  const policyBefore = fs.readFileSync(policyPath);
+  const setupText = discovery(['setup']).toString();
+  assert.match(setupText, /Installation policy: automatic setup declined/);
+  assert.match(setupText, /Explicit approvals: none/);
+  assert.match(setupText, /setup --install AGENT/);
+  assert.deepEqual(fs.readFileSync(policyPath), policyBefore, 'inspection must not broaden consent');
   assert.equal(fs.existsSync(path.join(discoveryHome, 'config', 'connection.json')), false);
   const about = JSON.parse(buildheadway(['about', '--json']));
   assert.equal(about.name, 'BuildHeadway');
