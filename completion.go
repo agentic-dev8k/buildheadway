@@ -81,7 +81,12 @@ func completionTree() completionNode {
 	for _, action := range strings.Fields("list add check enable disable remove") {
 		mcp.children[action] = completionNode{flags: project}
 	}
-	mcp.children["add"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--url", true), f("--token-env", true), f("--timeout", true), f("--env", true))}
+	presetIDs := []string{}
+	for _, item := range mcpPresetCatalog() {
+		presetIDs = append(presetIDs, item.ID)
+	}
+	mcp.children["catalog"] = completionNode{flags: project, choices: presetIDs}
+	mcp.children["add"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--url", true), f("--token-env", true), f("--timeout", true), f("--env", true), completionFlag{"--preset", true, presetIDs}, f("--path", true), f("--preview", false), f("--read-write", false))}
 	mcp.children["check"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--timeout", true))}
 	root.children["mcp"] = mcp
 	browser := completionNode{children: map[string]completionNode{}, childFirst: true, childFlags: true}
@@ -98,7 +103,12 @@ func completionTree() completionNode {
 	root.children["browser"] = browser
 	ext := completionNode{flags: project, children: map[string]completionNode{}, childFirst: true, childFlags: true}
 	ext.children["list"] = completionNode{flags: project}
-	ext.children["init"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--user", false), completionFlag{"--kind", true, []string{"skill", "prompt"}})}
+	templateIDs := []string{}
+	for _, item := range extensionTemplateCatalog() {
+		templateIDs = append(templateIDs, item.ID)
+	}
+	ext.children["catalog"] = completionNode{flags: project, choices: templateIDs}
+	ext.children["init"] = completionNode{flags: append(append([]completionFlag{}, project...), f("--user", false), completionFlag{"--kind", true, []string{"skill", "prompt"}}, completionFlag{"--template", true, templateIDs})}
 	root.children["extensions"] = ext
 	root.children["completion"] = completionNode{choices: []string{"bash", "zsh", "fish", "powershell"}}
 	return root
