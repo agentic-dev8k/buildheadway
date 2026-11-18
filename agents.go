@@ -347,6 +347,12 @@ func ResolveConnection(connection Connection, paths Paths) (string, error) {
 			return connection.Executable, nil
 		}
 	}
+	if connection.Backend == "commandcode" {
+		if path := FindTool("command-code", paths); path != "" {
+			return path, nil
+		}
+		return "", errors.New("install the native Command Code CLI with npm install --global command-code")
+	}
 	if path := FindTool(connection.Backend, paths); path != "" {
 		return path, nil
 	}

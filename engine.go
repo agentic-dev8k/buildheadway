@@ -492,13 +492,13 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		}
 		connection := planner
 		routeModel := ""
-		allowCline := r.fullAccess() && !strings.HasPrefix(callLabel, "dialogue-") && !r.hasActiveMCP()
+		allowOptional := r.fullAccess() && !strings.HasPrefix(callLabel, "dialogue-") && !r.hasActiveMCP()
 		if autoFree {
 			preferred := r.State.PlannerModel
 			if member != "" {
 				preferred = r.State.SeniorModels[member]
 			}
-			models, err := r.freeModels(ctx, "planner", planner.Model, preferred, 0, allowCline)
+			models, err := r.freeModels(ctx, "planner", planner.Model, preferred, 0, allowOptional)
 			if err != nil {
 				return Decision{}, err
 			}
@@ -610,7 +610,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			return answer, err
 		}
 		if kind == "quota" {
-			if autoFree && r.parkFreePlatform("planner", planner.Model, routeModel, allowCline) {
+			if autoFree && r.parkFreePlatform("planner", planner.Model, routeModel, allowOptional) {
 				continue
 			}
 			return answer, err
@@ -744,7 +744,7 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		r.Emit(Event{Kind: "worker", Text: task.Title + " · " + model})
 		worker := r.Settings.Worker
 		dispatchModel := model
-		if isClineFreeRoute(model) {
+		if optionalFreeRoute(model) {
 			worker = freeModelConnection(worker, model)
 			dispatchModel = worker.Model
 		}
