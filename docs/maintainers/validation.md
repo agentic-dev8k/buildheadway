@@ -1,3 +1,9 @@
+# BuildHeadway 0.57.0 local Command Code route — 2026-11-18
+
+- Continued from `additional-free-platforms-0.56` at `13c89ff4fa672d41c029d839f5f17eea4eeea475`. Added installed Ollama model discovery, native Command Code setup and local dispatch for eligible full-access goals.
+- Ran Command Code 1.91.0 in headless local-only mode against a private OpenAI-compatible loopback fixture. The request used the selected model without an authorization header. The native CLI emitted the matching model request receipt and completed with a final response. This exercised the transport and output protocol with simulated inference.
+- Regression coverage checks tool metadata, cloud aliases, provider config preservation, pinning, output receipts and the path from OpenCode through Cline and OpenRouter quota limits to Ollama.
+
 # BuildHeadway 0.56.0 free platforms — 2026-11-18
 
 - Continued from `free-routing-0.55` at `24fba8fbf11a6a231c630a153889293deef148cb`. Added opt-in Cline and OpenRouter dispatch plus read-only Command Code listings and a native Codex sign-in check.

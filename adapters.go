@@ -31,6 +31,10 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 		return cached.(helpCacheEntry), nil
 	}
 	result := helpCacheEntry{}
+	env := ToolEnv(paths)
+	if connection.Backend == "commandcode" {
+		env = localCommandCodeEnv(env)
+	}
 	for index, args := range [][]string{{"--help"}, {"exec", "--help"}} {
 		if index == 1 && connection.Backend != "codex" && connection.Backend != "opencode" {
 			break
@@ -39,12 +43,12 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 			args = []string{"run", "--help"}
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		cmd, err := PreparedCommand(probeCtx, append([]string{executable}, args...), ToolEnv(paths))
+		cmd, err := PreparedCommand(probeCtx, append([]string{executable}, args...), env)
 		if err != nil {
 			cancel()
 			return result, err
 		}
-		cmd.Env = ToolEnv(paths)
+		cmd.Env = env
 		data, runErr := cmd.CombinedOutput()
 		cancel()
 		if runErr != nil {
@@ -105,12 +109,21 @@ func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
 	if len(r.freePlatforms) == 0 || (r.State.RunID != "" && !r.fullAccess()) {
 		return models, primaryErr
 	}
-	if err := compatibleFreeCline(ctx, r.Paths); err != nil {
-		r.Emit(Event{Kind: "status", Text: "Skipping optional free platforms · compatible Cline unavailable"})
-		return models, primaryErr
-	}
+	checkCline := sync.OnceValue(func() error { return compatibleFreeCline(ctx, r.Paths) })
 	for _, platform := range r.freePlatforms {
 		if r.limitedPlatforms[platform].platform != "" {
+			continue
+		}
+		if platform == "ollama" {
+			found, err := configuredLocalOllamaOffers(ctx, r.Paths, r.Repo)
+			if err != nil {
+				r.Emit(Event{Kind: "status", Text: "Skipping ollama · " + freebieTerminalLine(err.Error(), 500)})
+			}
+			models = append(models, found...)
+			continue
+		}
+		if err := checkCline(); err != nil {
+			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · compatible Cline unavailable"})
 			continue
 		}
 		if err := freePlatformPrerequisite(platform, r.Paths); err != nil {
@@ -400,6 +413,17 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			env = setEnv(env, "CLINE_NO_INTERACTIVE", "1")
 			args = append(args, "--config", profile, "--compaction", "off")
 		}
+	case "commandcode":
+		if !fullAccess || !connection.RequireFree || connection.Provider != commandCodeOllamaProvider || !localOllamaModelID(model) {
+			return "", errors.New("Command Code requires a verified local Ollama model in full-access goal mode")
+		}
+		offers, err := configuredLocalOllamaOffers(ctx, r.Paths, r.Repo)
+		if err != nil || !contains(offers, "ollama/"+model) {
+			return "", errors.Join(freeOfferUnavailableError{"ollama/" + model}, err)
+		}
+		args = append(args, "--local-only", "--print", "--output-format", "json", "--model", commandCodeOllamaProvider+"/"+model,
+			"--safe-mode", "--no-skills", "--no-session", "--skip-onboarding", "--no-auto-update", "--max-turns", "24", "--yolo")
+		env = localCommandCodeEnv(env)
 	case "gemini":
 		mode := "plan"
 		if fullAccess {
@@ -448,8 +472,14 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	var providerBlocker, unavailableOffer error
 	zeroCost := r.requiresZeroCost(connection, label, planner)
 	observe := func(line string) {
-		if connection.Backend == "opencode" || connection.Backend == "cline" {
-			var err error
+		var err error
+		switch connection.Backend {
+		case "commandcode":
+			var event commandCodeResult
+			if json.Unmarshal([]byte(line), &event) == nil {
+				err = checkCommandCodeEvent(event, model)
+			}
+		case "opencode", "cline":
 			if connection.Backend == "cline" && connection.RequireFree {
 				err = clineFreeStreamError(connection.Provider, model, line)
 			}
@@ -468,15 +498,15 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			if err == nil && zeroCost && connection.Backend == "opencode" && openCodeReportedCharge(line) {
 				err = costError{}
 			}
-			if err != nil {
-				blockerMu.Lock()
-				var charge costError
-				if providerBlocker == nil || errors.As(err, &charge) {
-					providerBlocker = err
-				}
-				blockerMu.Unlock()
-				stopProcess()
+		}
+		if err != nil {
+			blockerMu.Lock()
+			var charge costError
+			if providerBlocker == nil || errors.As(err, &charge) {
+				providerBlocker = err
 			}
+			blockerMu.Unlock()
+			stopProcess()
 		}
 		if stream != nil {
 			stream(line)
@@ -503,6 +533,12 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	if unavailable != nil {
 		return "", unavailable
+	}
+	if connection.Backend == "commandcode" {
+		if result.Code != 0 {
+			return "", commandCodeExitError(result.Code, result.Output)
+		}
+		return decodeCommandCodeOutput(result.Output, model)
 	}
 	if result.Code != 0 {
 		return "", fmt.Errorf("%s exited %d: %s", connection.Backend, result.Code, Tail(result.Output, 2200))

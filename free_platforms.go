@@ -54,10 +54,10 @@ func selectedFreePlatforms(value string) ([]string, error) {
 	for _, part := range strings.Split(value, ",") {
 		name := strings.ToLower(strings.TrimSpace(part))
 		switch name {
-		case "cline", "openrouter":
+		case "cline", "openrouter", "ollama":
 			names = append(names, name)
 		default:
-			return nil, fmt.Errorf("%s accepts cline and openrouter", freePlatformsEnv)
+			return nil, fmt.Errorf("%s accepts cline, openrouter and ollama", freePlatformsEnv)
 		}
 	}
 	return Unique(names), nil
@@ -183,9 +183,9 @@ func freePlatformForModel(model string) string {
 	return id
 }
 
-func isClineFreeRoute(model string) bool {
+func optionalFreeRoute(model string) bool {
 	platform := freePlatformForModel(model)
-	return platform == "cline" || platform == "openrouter"
+	return platform == "cline" || platform == "openrouter" || platform == "ollama"
 }
 
 func clineFreeProfile(paths Paths, platform string) string {
@@ -265,12 +265,16 @@ func checkClineProfileURL(profile string) error {
 }
 
 func freeModelConnection(requested Connection, model string) Connection {
-	if !isClineFreeRoute(model) {
+	platform, id, _ := strings.Cut(model, "/")
+	switch platform {
+	case "cline", "openrouter":
+		return Connection{Backend: "cline", Provider: platform, Model: id, RequireFree: true}
+	case "ollama":
+		return Connection{Backend: "commandcode", Provider: commandCodeOllamaProvider, Model: id, RequireFree: true}
+	default:
 		requested.Model, requested.RequireFree = model, true
 		return requested
 	}
-	platform, id, _ := strings.Cut(model, "/")
-	return Connection{Backend: "cline", Provider: platform, Model: id, RequireFree: true}
 }
 
 type FreePlatformStatus struct {
@@ -290,7 +294,8 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 		{Platform: "opencode", Status: "automatic", Enabled: true, Detail: "Check the live catalog with buildheadway scan --models --agent opencode."},
 		{Platform: "cline", Status: "optional", Enabled: contains(enabled, "cline"), Detail: "Native Cline promotions. Sign in with buildheadway freebies platforms login cline."},
 		{Platform: "openrouter", Status: "optional", Enabled: contains(enabled, "openrouter"), Detail: "Verified tool-capable :free models via Cline and OPENROUTER_API_KEY."},
-		{Platform: "commandcode", Status: "discovery", Detail: "Command Code publishes free variants. Its account and background feature models are managed in the native CLI."},
+		{Platform: "commandcode", Status: "discovery", Detail: "Published Command Code hosted variants. Local execution is available through the Ollama route."},
+		{Platform: "ollama", Status: "optional", Enabled: contains(enabled, "ollama"), Detail: "Installed tool-capable Ollama models via Command Code in local-only mode. Configure with buildheadway freebies platforms setup ollama."},
 		{Platform: "codex", Status: "account_allowance", Detail: "Use ChatGPT sign-in with the Codex senior connection. Usage is assigned by the account plan."},
 	}
 	if !check {
@@ -314,6 +319,14 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 			}
 		case "codex":
 			rows[i].Detail = codexPlanStatus(ctx, paths)
+		case "ollama":
+			models, err := configuredLocalOllamaOffers(ctx, paths, "")
+			rows[i].Models = models
+			rows[i].Status = "local_models_configured"
+			if err != nil {
+				rows[i].Status = "local_setup_needed"
+				rows[i].Detail = freebieTerminalLine(err.Error(), 500)
+			}
 		}
 	}
 	return rows, ctx.Err()
@@ -345,7 +358,7 @@ func formatFreePlatforms(rows []FreePlatformStatus) string {
 	out.WriteString("Free platforms\n")
 	for _, row := range rows {
 		fmt.Fprintf(&out, "\n%s · %s\n%s\n", row.Platform, strings.ReplaceAll(row.Status, "_", " "), row.Detail)
-		if row.Platform == "cline" || row.Platform == "openrouter" {
+		if optionalFreeRoute(row.Platform) {
 			if row.Enabled {
 				out.WriteString("Enabled for full-access routing.\n")
 			} else {
@@ -362,6 +375,13 @@ func formatFreePlatforms(rows []FreePlatformStatus) string {
 func runFreePlatformsCommand(paths Paths, args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+	if len(args) == 2 && args[0] == "setup" && args[1] == "ollama" {
+		if err := setupCommandCodeOllama(ctx, paths); err != nil {
+			return fail(err)
+		}
+		fmt.Println("Configured local Ollama models in Command Code. Add ollama to BUILDHEADWAY_FREE_PLATFORMS to enable routing.")
+		return 0
+	}
 	if len(args) == 2 && args[0] == "login" && args[1] == "cline" {
 		if err := compatibleFreeCline(ctx, paths); err != nil {
 			return fail(err)
@@ -389,7 +409,7 @@ func runFreePlatformsCommand(paths Paths, args []string) int {
 		return 0
 	}
 	f := flag.NewFlagSet("buildheadway freebies platforms", flag.ContinueOnError)
-	check := f.Bool("check", false, "Refresh public catalogs and check local Codex sign-in")
+	check := f.Bool("check", false, "Refresh public catalogs, local Ollama readiness and Codex sign-in")
 	asJSON := f.Bool("json", false, "Output JSON")
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -398,7 +418,7 @@ func runFreePlatformsCommand(paths Paths, args []string) int {
 		return 2
 	}
 	if f.NArg() != 0 {
-		return fail(errors.New("use freebies platforms [--check] [--json] or freebies platforms login cline"))
+		return fail(errors.New("use freebies platforms [--check] [--json], freebies platforms login cline or freebies platforms setup ollama"))
 	}
 	rows, err := freePlatformStatuses(ctx, paths, *check)
 	if err != nil {

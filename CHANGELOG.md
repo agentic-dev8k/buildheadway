@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.57.0 — 2026-11-18
+
+- Add opt-in local Ollama routing through the native Command Code CLI for full-access goals. After a hosted provider reaches its free limit, automatic routing can continue with an eligible installed model.
+- Add local provider setup and readiness diagnostics. Verify installed tool support, the keyless loopback endpoint, and the model in Command Code's native output.
+
 ## 0.56.0 — 2026-11-18
 
 - Add opt-in Cline promotions and verified OpenRouter free variants to full-access automatic routing. Park a provider that reports a shared limit and recheck independent enabled platforms before dispatching another model.

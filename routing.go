@@ -211,7 +211,7 @@ func (r *Runner) modelOutcome(role, model, kind string, callErr error) error {
 func pinnedModel(model string) bool { return model != "" && model != "auto" }
 
 // Never use saved health as evidence of current pricing or availability.
-func (r *Runner) freeModels(ctx context.Context, role, requested, preferred string, rotation int, allowCline bool) ([]string, error) {
+func (r *Runner) freeModels(ctx context.Context, role, requested, preferred string, rotation int, allowOptional bool) ([]string, error) {
 	pinned := pinnedModel(requested)
 	r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "checking", Pinned: pinned}})
 	models, err := r.Discover(ctx)
@@ -230,7 +230,7 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	var firstRecheck time.Time
 	now := r.routeNow()
 	for _, model := range models {
-		if isClineFreeRoute(model) && !allowCline {
+		if optionalFreeRoute(model) && !allowOptional {
 			continue
 		}
 		if _, blocked := r.limitedPlatforms[freePlatformForModel(model)]; blocked {
@@ -247,7 +247,7 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	models = eligible
 	if len(models) == 0 {
 		for _, platform := range append([]string{"opencode"}, r.freePlatforms...) {
-			if quota, held := r.limitedPlatforms[platform]; held && (platform == "opencode" || allowCline) {
+			if quota, held := r.limitedPlatforms[platform]; held && (platform == "opencode" || allowOptional) {
 				r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "quota"}})
 				return nil, quota
 			}
@@ -282,8 +282,8 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	return models, nil
 }
 
-func (r *Runner) parkFreePlatform(role, requested, model string, allowCline bool) bool {
-	if pinnedModel(requested) || !allowCline || len(r.freePlatforms) == 0 {
+func (r *Runner) parkFreePlatform(role, requested, model string, allowOptional bool) bool {
+	if pinnedModel(requested) || !allowOptional || len(r.freePlatforms) == 0 {
 		return false
 	}
 	platform := freePlatformForModel(model)
