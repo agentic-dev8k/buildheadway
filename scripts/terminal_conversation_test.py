@@ -22,7 +22,10 @@ if '--version' in args:
 if '--help' in args:
  print('--pure --format --model --file --dir --auto --output-schema --output-last-message --sandbox'); sys.exit()
 if 'models' in args:
- print('opencode/free\n'+json.dumps({'cost':{'input':0,'output':0},'capabilities':{'toolcall':True}})); sys.exit()
+ assert '--refresh' in args
+ for model,price in [('retired-free',0),('free',0),('paid',1)]:
+  print('opencode/'+model+'\n'+json.dumps({'cost':{'input':price,'output':price},'capabilities':{'toolcall':True}}))
+ sys.exit()
 prompt=Path(args[args.index('--file')+1]).read_text() if '--file' in args else sys.stdin.read()
 repo=Path.cwd()
 def decision(summary,done=False,tasks=None):
@@ -32,6 +35,17 @@ if 'INTERNAL TEAM CONSULTATION' in prompt:
 elif prompt.startswith('You are an implementation worker.'):
  assert 'WORK ORDER' in prompt and 'required_checks' in prompt and 'verification_shell' in prompt
  assert 'Changed' in prompt and 'Verification' in prompt and 'Remaining' in prompt
+ model=args[args.index('--model')+1]
+ if model=='opencode/retired-free':
+  deadline=time.monotonic()+30
+  while not (repo/'.forge'/'route-observed').exists():
+   if time.monotonic()>deadline: raise RuntimeError('Timed out observing the initial free route')
+   time.sleep(0.05)
+  message='Free promotion has ended for Retired Free. You can continue using the model by subscribing to OpenCode Go - https://opencode.ai/go'
+  receipt={'type':'error','error':{'type':'ModelError','message':message}}
+  print(json.dumps({'type':'error','error':{'name':'APIError','data':{'message':message,'statusCode':401,'responseBody':json.dumps(receipt)}}}))
+  sys.exit(1)
+ assert model=='opencode/free', 'Dispatched an unverified worker'
  if os.environ.get('BUILDHEADWAY_TEST_EXTENSIONS') and not (repo/'.forge'/'worker-waiting').exists():
   (repo/'.forge'/'worker-waiting').write_text('ready')
   deadline=time.monotonic()+30
@@ -112,25 +126,28 @@ def run(binary, root, extensions=False):
             send('/workflows')
             wait_for(lambda:b'Repair arithmetic' in transcript,'custom workflow discovery')
             send('/repair "Fix addition"')
+        else:
+            send('Fix addition and preserve the existing tests')
+        wait_for(lambda:b'Worker opencode/retired-free' in transcript and b'1 backup' in transcript and b'next opencode/free' in transcript,'free route and verified backup')
+        (project/'.forge'/'route-observed').write_text('observed')
+        if extensions:
             wait_for(lambda:(project/'.forge'/'worker-waiting').exists(),'active worker boundary')
             send('/steer PRESERVE_DECIMALS_AND_DOCUMENT: preserve decimals and write a README usage example')
             wait_for(lambda:bool(list((project/'.forge'/'runs').glob('*/steering.json'))),'durable steering inbox')
             (project/'.forge'/'worker-release').write_text('continue')
-        else:
-            send('Fix addition and preserve the existing tests')
         wait_for(lambda:state().get('status') in ('complete','blocked','paused'),'plain goal completion')
         saved=state()
         assert saved['status']=='complete',saved.get('error')
         assert saved['mode']=='figureout' and saved['access']=='full'
         if extensions:
-            assert saved['worker_calls']==3 and len(saved['steering'])==1
+            assert saved['worker_calls']==4 and len(saved['steering'])==1
             assert len(saved['hook_results'])==2 and all(h['exit_code']==0 for h in saved['hook_results'])
             assert 'Workflow: repair' in saved['goal']
             assert (project/'README.md').exists()
             hook_events=[json.loads(line) for line in (project/'.forge'/'hook-events.jsonl').read_text().splitlines()]
             assert len(hook_events)>=4
         else:
-            assert saved['worker_calls']==2 and saved['planner_calls']==7
+            assert saved['worker_calls']==3 and saved['planner_calls']==7
         questions=[m for m in saved['discussion'] if m['from']=='@worker' and m['kind']=='question']
         assert len(questions)==1
         assert any(m['kind']=='answer' and m['to']=='@worker' and m.get('reply_to')==questions[0]['sequence'] for m in saved['discussion'])
@@ -180,7 +197,9 @@ def run(binary, root, extensions=False):
         worker_health=[h for h in routing['models'] if h['role']=='worker']
         assert sum(h['attempts'] for h in worker_health)==saved['worker_calls']
         assert sum(h['successes'] for h in worker_health)>=2
-        assert all(h['retry_after_seconds']==0 for h in worker_health)
+        retired=next(h for h in worker_health if h['model']=='opencode/retired-free')
+        assert retired['attempts']==1 and retired['status']=='offer_unavailable' and retired['retry_after_seconds']>0
+        assert all(h['model'] in ('opencode/free','opencode/retired-free') for h in worker_health)
         coverage=json.loads(subprocess.check_output([str(binary),'acceptance','--json'],cwd=project,env=env))
         assert len(coverage)==1 and coverage[0]['status']=='passed'
         assert coverage[0]['evidence'][0]['command']=='npm test' and coverage[0]['evidence'][0]['exit_code']==0

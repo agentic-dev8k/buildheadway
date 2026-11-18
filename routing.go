@@ -31,6 +31,15 @@ type RoutingWait struct {
 	Until string `json:"until"`
 }
 
+// FreeRoute is a view of the current selection. Offers are checked again
+// before a backup is dispatched.
+type FreeRoute struct {
+	Role, State, Model, Next string
+	Backups                  int
+	Pinned                   bool
+	RetryAt                  time.Time
+}
+
 func validRoutingRole(role string) bool { return role == "planner" || role == "worker" }
 
 func validateRouting(s State) error {
@@ -45,7 +54,7 @@ func validateRouting(s State) error {
 			return errors.New("invalid model routing counters")
 		}
 		switch h.FailureKind {
-		case "", "transient", "response", "execution", "auth", "policy", "cost", "output_limit":
+		case "", "transient", "response", "execution", "auth", "policy", "quota", "unavailable", "cost", "output_limit":
 		default:
 			return errors.New("invalid model failure kind")
 		}
@@ -105,6 +114,14 @@ func modelFailureKind(err error, response bool) string {
 	if errors.As(err, &charge) || strings.Contains(err.Error(), "nonzero worker cost") {
 		return "cost"
 	}
+	var quota freeQuotaError
+	if errors.As(err, &quota) {
+		return "quota"
+	}
+	var unavailable freeOfferUnavailableError
+	if errors.As(err, &unavailable) {
+		return "unavailable"
+	}
 	var authentication authError
 	if errors.As(err, &authentication) || authRE.MatchString(err.Error()) {
 		return "auth"
@@ -134,15 +151,19 @@ func hardModelFailure(err error) bool {
 		return true
 	}
 	switch modelFailureKind(err, false) {
-	case "auth", "cost", "policy", "output_limit":
+	case "auth", "cost", "policy", "quota", "output_limit":
 		return true
 	}
 	return false
 }
 
 func modelCooldown(kind string, failures int) time.Duration {
-	if kind == "auth" || kind == "policy" || kind == "cost" || kind == "output_limit" {
-		return 0 // These stop the run; waiting cannot repair authorization or billing.
+	switch kind {
+	case "auth", "policy", "quota", "cost", "output_limit":
+		return 0
+	case "unavailable":
+		// A catalog can briefly advertise an offer after the server drops it.
+		return 15 * time.Minute
 	}
 	delay := 30 * time.Second
 	if kind == "transient" {
@@ -176,25 +197,54 @@ func (r *Runner) modelOutcome(role, model, kind string, callErr error) error {
 			h.CooldownUntil = now.Add(delay).Format(time.RFC3339Nano)
 		}
 		r.note("model-failure", role+" · "+model+" · "+kind+" · "+h.LastError)
+		if kind == "quota" {
+			r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "quota", Model: model}})
+		}
 	}
 	return r.checkpoint()
 }
 
+func pinnedModel(model string) bool { return model != "" && model != "auto" }
+
 // Never use saved health as evidence of current pricing or availability.
 func (r *Runner) freeModels(ctx context.Context, role, requested, preferred string, rotation int) ([]string, error) {
+	pinned := pinnedModel(requested)
+	r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "checking", Pinned: pinned}})
 	models, err := r.Discover(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, errNoVerifiedFreeModels) {
 		return nil, err
 	}
 	models = Unique(models)
-	if len(models) == 0 {
-		return nil, fmt.Errorf("no verified zero-price %s models are available", role)
-	}
-	if requested != "" && requested != "auto" {
+	if pinned {
 		if !contains(models, requested) {
-			return nil, fmt.Errorf("the chosen %s is unavailable or no longer verified as free; choose /models", role)
+			r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "empty", Model: requested, Pinned: true}})
+			return nil, limitError{fmt.Sprintf("the chosen %s is unavailable or no longer verified as free; inspect /routing", role)}
 		}
-		return []string{requested}, nil
+		models = []string{requested}
+	}
+	eligible := make([]string, 0, len(models))
+	var firstRecheck time.Time
+	now := r.routeNow()
+	for _, model := range models {
+		if until := r.offerHold(model); until.After(now) {
+			if firstRecheck.IsZero() || until.Before(firstRecheck) {
+				firstRecheck = until
+			}
+			continue
+		}
+		eligible = append(eligible, model)
+	}
+	models = eligible
+	if len(models) == 0 {
+		route := FreeRoute{Role: role, State: "empty", Pinned: pinned, RetryAt: firstRecheck}
+		if pinned {
+			route.Model = requested
+		}
+		r.Emit(Event{Kind: "free-route", Value: route})
+		if !firstRecheck.IsZero() {
+			return nil, limitError{fmt.Sprintf("verified free %s offers are unavailable; inspect /routing or use /resume after %s", role, firstRecheck.Local().Format(time.RFC3339))}
+		}
+		return nil, limitError{fmt.Sprintf("no verified zero-price %s models are available; inspect /models and use /resume when offers return", role)}
 	}
 	if rotation > 0 && len(models) > 1 {
 		offset := rotation % len(models)
@@ -216,22 +266,46 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	return models, nil
 }
 
-func (r *Runner) readyModel(role string, models []string) (string, time.Time) {
+func (r *Runner) offerHold(model string) time.Time {
+	var latest time.Time
+	for _, role := range []string{"planner", "worker"} {
+		h := r.State.modelHealth(role, model)
+		if h != nil && h.FailureKind == "unavailable" && h.ConsecutiveFailures > 0 {
+			if until, _ := time.Parse(time.RFC3339Nano, h.CooldownUntil); until.After(latest) {
+				latest = until
+			}
+		}
+	}
+	return latest
+}
+
+func (r *Runner) readyRoute(role string, models []string, pinned bool) FreeRoute {
 	now := r.routeNow()
-	var firstRetry time.Time
+	route := FreeRoute{Role: role, State: "cooldown", Pinned: pinned}
 	for _, model := range models {
 		if h := r.State.modelHealth(role, model); h != nil && h.CooldownUntil != "" {
 			until, _ := time.Parse(time.RFC3339Nano, h.CooldownUntil)
 			if until.After(now) {
-				if firstRetry.IsZero() || until.Before(firstRetry) {
-					firstRetry = until
+				if route.RetryAt.IsZero() || until.Before(route.RetryAt) {
+					route.RetryAt = until
 				}
 				continue
 			}
 		}
-		return model, time.Time{}
+		if route.Model == "" {
+			route.Model = model
+			continue
+		}
+		if route.Next == "" {
+			route.Next = model
+		}
+		route.Backups++
 	}
-	return "", firstRetry
+	if route.Model != "" {
+		route.State, route.RetryAt = "selected", time.Time{}
+	}
+	r.Emit(Event{Kind: "free-route", Value: route})
+	return route
 }
 
 func (r *Runner) waitForModels(ctx context.Context, role string, until time.Time) (waitErr error) {
@@ -292,9 +366,12 @@ func routingReport(state State, now time.Time) RoutingReport {
 		row := ModelRouteStatus{ModelHealth: h, Status: "needs_catalog_check"}
 		if until, err := time.Parse(time.RFC3339Nano, h.CooldownUntil); err == nil && until.After(now) {
 			row.Status = "cooldown"
+			if h.FailureKind == "unavailable" {
+				row.Status = "offer_unavailable"
+			}
 			row.RetryAfterSeconds = int64((until.Sub(now) + time.Second - 1) / time.Second)
 		}
-		if h.ConsecutiveFailures > 0 && (h.FailureKind == "auth" || h.FailureKind == "policy" || h.FailureKind == "cost" || h.FailureKind == "output_limit") {
+		if h.ConsecutiveFailures > 0 && (h.FailureKind == "auth" || h.FailureKind == "policy" || h.FailureKind == "quota" || h.FailureKind == "cost" || h.FailureKind == "output_limit") {
 			row.Status = "last_call_blocked"
 		}
 		report.Models = append(report.Models, row)
@@ -334,6 +411,9 @@ func FormatRouting(report RoutingReport) string {
 		status := "ready for a catalog check"
 		if h.RetryAfterSeconds > 0 {
 			status = fmt.Sprintf("cooldown · retry in %ds", h.RetryAfterSeconds)
+		}
+		if h.Status == "offer_unavailable" {
+			status = fmt.Sprintf("offer unavailable · recheck in %s", (time.Duration(h.RetryAfterSeconds) * time.Second).String())
 		}
 		if h.Status == "last_call_blocked" {
 			status = "last call blocked; resolve the recorded blocker before resuming"

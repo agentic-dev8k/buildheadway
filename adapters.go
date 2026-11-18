@@ -15,6 +15,7 @@ import (
 type helpCacheEntry struct{ Global, Run string }
 
 var helpCache sync.Map
+var errNoVerifiedFreeModels = errors.New("no models have verifiable zero pricing; BuildHeadway will not choose a paid worker")
 
 func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCacheEntry, error) {
 	executable, err := ResolveConnection(connection, paths)
@@ -125,7 +126,7 @@ func readFreeModelCatalog(ctx context.Context, argv []string, paths Paths, repo,
 	}
 	models := ParseFreeModels(result.Output)
 	if len(models) == 0 {
-		return nil, errors.New("no models have verifiable zero pricing; BuildHeadway will not choose a paid worker")
+		return nil, errNoVerifiedFreeModels
 	}
 	return models, nil
 }
@@ -372,17 +373,27 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	processCtx, stopProcess := context.WithCancel(ctx)
 	defer stopProcess()
 	var blockerMu sync.Mutex
-	var providerBlocker error
+	var providerBlocker, unavailableOffer error
 	zeroCost := r.requiresZeroCost(connection, label, planner)
 	observe := func(line string) {
 		if connection.Backend == "opencode" || connection.Backend == "cline" {
-			err := agentStreamBlocker(connection.Backend, model, line)
+			err := agentStreamError(connection.Backend, model, line, zeroCost)
+			var unavailable freeOfferUnavailableError
+			if errors.As(err, &unavailable) {
+				// Keep reading this process so a later charge or blocker
+				// wins over a recoverable availability report.
+				blockerMu.Lock()
+				unavailableOffer = unavailable
+				blockerMu.Unlock()
+				err = nil
+			}
 			if err == nil && zeroCost && connection.Backend == "opencode" && openCodeReportedCharge(line) {
 				err = costError{}
 			}
 			if err != nil {
 				blockerMu.Lock()
-				if providerBlocker == nil {
+				var charge costError
+				if providerBlocker == nil || errors.As(err, &charge) {
 					providerBlocker = err
 				}
 				blockerMu.Unlock()
@@ -395,7 +406,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	result, err := RunProcess(processCtx, args, r.Repo, logPath, prompt, env, timeout, observe)
 	blockerMu.Lock()
-	blocker := providerBlocker
+	blocker, unavailable := providerBlocker, unavailableOffer
 	blockerMu.Unlock()
 	if blocker != nil {
 		// A genuine provider blocker keeps priority over the cancellation it
@@ -407,6 +418,9 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	if err != nil {
 		return "", err
+	}
+	if unavailable != nil {
+		return "", unavailable
 	}
 	if result.Code != 0 {
 		return "", fmt.Errorf("%s exited %d: %s", connection.Backend, result.Code, Tail(result.Output, 2200))

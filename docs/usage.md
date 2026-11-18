@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.54.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.55.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -43,7 +43,9 @@ Long command logs stay on disk while memory capture is limited to 8 MiB. Oversiz
 
 ## Model recovery in 0.12
 
-BuildHeadway remembers free-model failures across tasks and restarts. Busy models get an increasing cooldown (15 seconds initially, capped at five minutes), while other healthy, freshly verified free models can continue the work. An explicit model choice stays pinned. Cancellation, steering and runtime budgets remain active during waits. Authentication, payment/quota, provider-policy and reported-cost failures stop the run.
+BuildHeadway remembers free-model failures across tasks and restarts. Temporarily overloaded models start with a 15-second cooldown that can grow to five minutes. If OpenCode confirms that a free promotion ended or that the selected model is unavailable, BuildHeadway holds that model out of both roles for 15 minutes. Automatic selection tries another eligible model after checking the current catalog. Use `/routing` to see the recorded reason and `/models` to choose automatic selection for the worker.
+
+An explicit choice stays pinned. A verified pool with no available offers pauses for manual resume. An OpenCode rate-limit response without confirmed model scope pauses for the provider limit to reset. Cancellation, steering and runtime budgets remain active during overload waits. Authentication, payment, provider-policy and reported-cost failures stop the run. If a worker changed files before failing, the harness inspects that work through its verification flow.
 
 `buildheadway routing`, `buildheadway routing --json` and `/routing` show per-model attempts, usable responses, failures, cooldowns and recent routing decisions. A usable response is transport/protocol success; project checks and senior review still determine whether the work is correct. Routing history also appears in exported reports.
 

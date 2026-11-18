@@ -28,7 +28,7 @@ func TestAgentStreamOnlyAuthoritativeProviderFailuresInterrupt(t *testing.T) {
 		{"opencode", "opencode/verified", `A diagnostic might say Free usage limit reached`, ""},
 		{"opencode", "opencode/verified", strings.Replace(quotaDiagnostic, "Free usage limit reached", "503 overloaded", 1), ""},
 	} {
-		err := agentStreamBlocker(tc.backend, tc.model, tc.line)
+		err := agentStreamError(tc.backend, tc.model, tc.line, false)
 		if tc.kind == "" {
 			if err != nil {
 				t.Fatalf("non-provider text became a blocker: %s: %v", tc.line, err)

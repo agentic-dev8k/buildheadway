@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.54.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.55.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -31,7 +31,7 @@ buildheadway figureout "Build a task tracker with persistence, search, and tests
 
 Inside the terminal app, a normal message starts this workflow. The team generates its next instructions and continues through implementation, repairs and review. See [automatic instructions and handoffs](docs/prompts.md).
 
-On first launch, select an installed senior agent and complete its own sign-in. You can attach additional seniors with `buildheadway attach codex` or `buildheadway attach claude`. Free workers use OpenCode and a freshly checked zero-price catalog. Account allowances and provider restrictions still apply. Run `buildheadway scan --models --agent opencode` to inspect the current catalog; see [agent checks](docs/agents.md).
+On first launch, select an installed senior agent and complete its own sign-in. You can attach additional seniors with `buildheadway attach codex` or `buildheadway attach claude`. Automatic free workers switch to a freshly verified zero-price backup when OpenCode confirms that the current offer ended. Shared or unclear rate limits pause the goal. The terminal shows the current route and backups. Inspect the catalog with `buildheadway scan --models --agent opencode`. See [agent checks](docs/agents.md).
 
 Press Ctrl+P for searchable commands. Read history while agents continue; Ctrl+End returns to live output. See the [terminal interface guide](docs/terminal.md).
 

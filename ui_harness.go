@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -159,7 +160,11 @@ func (m appModel) selectionView(w, h int) string {
 	} else {
 		names = append([]string{"Automatic free-model selection"}, m.workerModels...)
 	}
-	rows := []string{accent.Render(shortUI("Connect your coding team", w))}
+	title := "Connect your coding team"
+	if m.mode == "models" {
+		title = "Choose a free worker"
+	}
+	rows := []string{accent.Render(shortUI(title, w))}
 	if m.setupBackend != "" {
 		rows = []string{accent.Render(shortUI("Review private installation", w)), shortUI("Senior: "+m.setupBackend+" · worker: OpenCode", w)}
 		for _, id := range m.setupNeeded {
@@ -173,25 +178,84 @@ func (m appModel) selectionView(w, h int) string {
 	}
 	start := max(0, m.cursor-max(0, h-3))
 	for i := start; i < len(names) && len(rows) < h; i++ {
-		mark := "  "
 		if i == m.cursor {
-			mark = "› "
+			rows = append(rows, accent.Render(shortUI("› "+names[i], w)))
+		} else {
+			rows = append(rows, shortUI("  "+names[i], w))
 		}
-		rows = append(rows, shortUI(mark+names[i], w))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).Render(strings.Join(rows, "\n"))
 }
+
+func (m appModel) freeRouteView(width int) string {
+	badge, detail := "Free auto", "/models to choose"
+	style := accent
+	route := m.freeRoute
+	role := "Worker"
+	if route.Role == "planner" {
+		role = "Planner"
+	}
+	if route.Pinned || (route.State == "" && pinnedModel(m.settings.Worker.Model)) {
+		badge = "Free pin"
+	}
+	switch route.State {
+	case "checking":
+		detail = role + " · checking prices"
+	case "selected":
+		model := freebieTerminalLine(route.Model, 256)
+		detail = role + " " + model
+		if !route.Pinned {
+			backupText := fmt.Sprintf("%d backups", route.Backups)
+			if route.Backups == 1 {
+				backupText = "1 backup"
+			}
+			if width < 68 {
+				detail = role + " · " + backupText + " · " + model
+			} else {
+				detail += " · " + backupText
+				if route.Next != "" {
+					detail += " · next " + freebieTerminalLine(route.Next, 256)
+				}
+			}
+		}
+	case "cooldown":
+		style = warning
+		detail = role + " cooling · " + route.RetryAt.Local().Format("15:04:05")
+	case "empty":
+		badge, style = "Free paused", warning
+		detail = role + " · no available offers"
+		if !route.RetryAt.IsZero() {
+			detail += " · recheck " + route.RetryAt.Local().Format("15:04")
+		}
+	case "quota":
+		badge, style = "Free paused", warning
+		detail = "Provider rate limit · /routing"
+	default:
+		if m.demo {
+			badge, detail = "Demo", "Simulated agents"
+		} else if !m.connected {
+			badge, detail = "Setup", "Connect your coding team"
+		} else if badge == "Free pin" {
+			detail = freebieTerminalLine(m.settings.Worker.Model, 256)
+		}
+	}
+	return ansi.Truncate(style.Render(badge)+"  "+shortUI(detail, width), width, "…")
+}
+
 func (m appModel) harnessView() string {
 	if m.tinyTerminal() {
 		return shortUI("Resize terminal (20×10 minimum). Ctrl+C pauses or quits.", m.width)
 	}
 	w := max(1, m.width-2)
-	conn := "Choose your planner"
+	project := m.repo
+	if w < 83 {
+		project = filepath.Base(project)
+	}
 	if m.connected {
-		conn = m.settings.Planner.Backend + " planner · free workers"
+		project = m.settings.Planner.Backend + " senior · " + project
 	}
 	if m.demo {
-		conn = "Offline demo · simulated agents"
+		project = "Offline · " + project
 	}
 	body := m.viewport.View()
 	if m.mode == "connect" || m.mode == "models" {
@@ -207,7 +271,7 @@ func (m appModel) harnessView() string {
 	if m.progress.RunID != "" {
 		status += fmt.Sprintf(" · cycle %d · tasks %d/%d", m.progress.Cycle, m.progress.Finished, m.progress.Total)
 	}
-	if w >= 100 {
+	if w >= 100 && m.progress.RunID != "" {
 		status += fmt.Sprintf(" · senior %d · worker %d", m.progress.PlannerCalls, m.progress.WorkerCalls)
 	}
 	if !m.following {
@@ -221,5 +285,14 @@ func (m appModel) harnessView() string {
 		footer = "Enter send · ^P commands · ^C"
 	}
 	composer := panel.Width(max(1, w-2)).Render(m.editor.View())
-	return lipgloss.NewStyle().Padding(0, 1).Render(strings.Join([]string{accent.Render(shortUI("BUILDHEADWAY · "+Version, w)), muted.Render(shortUI(m.repo, w)), muted.Render(shortUI(conn, w)), body, shortUI(status, w), composer, muted.Render(shortUI(footer, w))}, "\n"))
+	title := accent.Render("BUILDHEADWAY") + muted.Render("  v"+Version)
+	return lipgloss.NewStyle().Padding(0, 1).Render(strings.Join([]string{
+		ansi.Truncate(title, w, "…"),
+		muted.Render(shortUI(freebieTerminalLine(project, 1024), w)),
+		m.freeRouteView(w),
+		body,
+		shortUI(status, w),
+		composer,
+		muted.Render(shortUI(footer, w)),
+	}, "\n"))
 }

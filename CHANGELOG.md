@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.55.0 — 2026-11-18
+
+- Continue on a newly verified free backup when OpenCode confirms that the selected promotion ended or its model disappeared. Keep unavailable offers on a short hold across planner and worker calls, including after resume.
+- Pause at ambiguous provider rate limits or when the verified pool is empty. Keep explicit model pins and check for partial worker edits before dispatching another assignment.
+- Show the current free model, ready backup count, next candidate and retry or pause state in the terminal header. Compact layouts prioritize the routing state and backup count.
+
 ## 0.54.0 — 2026-11-18
 
 - Bound every installed-agent version probe to 16 KiB and four seconds, with a 512-byte inert first-line version. Excessive or empty output is rejected without blocking independent inventory entries.

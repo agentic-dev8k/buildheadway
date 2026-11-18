@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -89,6 +90,43 @@ func TestRecoveredScrollResizeAndTinyWindowKeepState(t *testing.T) {
 		}
 		if lipgloss.Height(view) > m.height {
 			t.Fatalf("height overflow %d > %d", lipgloss.Height(view), m.height)
+		}
+	}
+}
+
+func TestLiveFreeRouteFitsDuringResizeAndPreservesDraft(t *testing.T) {
+	m := newApp(testPaths(t), t.TempDir(), "", false, false)
+	m.editor.SetValue("Unsent goal 界")
+	m.busy, m.connected = true, true
+	route := FreeRoute{Role: "worker", State: "selected", Model: "opencode/primary", Next: "opencode/backup", Backups: 1}
+	for _, size := range [][2]int{{20, 10}, {42, 16}, {120, 36}} {
+		m.width, m.height = size[0], size[1]
+		m.sizeUI()
+		updated, _ := m.Update(Event{Kind: "free-route", Value: route})
+		m = updated.(appModel)
+		view := m.View()
+		if !strings.Contains(view, "Free auto") || m.editor.Value() != "Unsent goal 界" {
+			t.Fatalf("route or draft disappeared at %d columns", m.width)
+		}
+		if m.width > 30 && !strings.Contains(view, "1 backup") {
+			t.Fatalf("missing backup count at %d columns", m.width)
+		}
+		if m.width >= 100 && !strings.Contains(view, "next opencode/backup") {
+			t.Fatal("missing next model on wide terminal")
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if lipgloss.Width(line) > m.width {
+				t.Fatalf("width overflow %d > %d", lipgloss.Width(line), m.width)
+			}
+		}
+		if lipgloss.Height(view) > m.height {
+			t.Fatalf("height overflow %d > %d", lipgloss.Height(view), m.height)
+		}
+	}
+	for state, detail := range map[string]string{"cooldown": "Worker cooling", "empty": "no available offers", "quota": "Provider rate limit"} {
+		updated, _ := m.Update(Event{Kind: "free-route", Value: FreeRoute{Role: "worker", State: state, RetryAt: time.Now()}})
+		if view := updated.View(); !strings.Contains(view, detail) {
+			t.Fatalf("missing %s state: %s", state, detail)
 		}
 	}
 }
