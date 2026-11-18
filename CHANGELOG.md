@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.56.0 — 2026-11-18
+
+- Add opt-in Cline promotions and verified OpenRouter free variants to full-access automatic routing. Park a provider that reports a shared limit and recheck independent enabled platforms before dispatching another model.
+- Add live and offline platform inspection, a managed native Cline sign-in, Command Code offer discovery, and a Codex ChatGPT sign-in check.
+- Require native Cline receipts to confirm both the chosen free model and provider. Preserve pinned models, required MCP access, partial-edit verification, and cost stops.
+
 ## 0.55.0 — 2026-11-18
 
 - Continue on a newly verified free backup when OpenCode confirms that the selected promotion ended or its model disappeared. Keep unavailable offers on a short hold across planner and worker calls, including after resume.

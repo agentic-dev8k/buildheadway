@@ -180,7 +180,7 @@ func formatSetup(s SetupInspection) string {
 		}
 		fmt.Fprintf(&out, "\n%s: %s", id, v)
 	}
-	out.WriteString("\n\nInstalled, compatible and zero listed prices are separate checks. Account access and inference have not been tested.\nOpenCode is the currently supported verified-free worker; Cline promotions require its own account and are not automatically price-verified.\nUse /connect to choose a senior. Missing or incompatible packages are reviewed before private installation. /freebies check discovers offers without installing or running models.")
+	out.WriteString("\n\nInstalled, compatible and zero listed prices are separate checks. Account access and inference have not been tested.\nOpenCode supplies the default worker pool. Use /freebies platforms to inspect the optional Cline and OpenRouter routes.\nUse /connect to choose a senior. Missing or incompatible packages are reviewed before private installation. /freebies check discovers offers without installing or running models.")
 	return out.String()
 }
 

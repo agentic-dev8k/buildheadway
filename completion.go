@@ -51,6 +51,7 @@ func completionTree() completionNode {
 	}
 	freebies.children["x-enable"] = completionNode{flags: []completionFlag{f("--json", false), f("--token-env", true), f("--requests", true), f("--acknowledge-metered", false)}}
 	freebies.children["offers"] = completionNode{flags: []completionFlag{f("--json", false), f("--search", true), f("--provider", true), f("--limit", true), {"--source", true, []string{"all", "catalog", "x"}}}}
+	freebies.children["platforms"] = completionNode{flags: []completionFlag{f("--json", false), f("--check", false)}}
 	root.children["freebies"] = freebies
 	agentIDs := []string{}
 	for _, agent := range Registry {

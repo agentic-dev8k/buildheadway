@@ -24,10 +24,14 @@ type authError struct{ agent, reason string }
 
 func (e authError) Error() string { return e.agent + " needs sign-in or renewed quota: " + e.reason }
 
-type costError struct{}
+type costError struct{ platform string }
 
-func (costError) Error() string {
-	return "OpenCode reported a nonzero cost; automatic free routing has been paused"
+func (e costError) Error() string {
+	platform := e.platform
+	if platform == "" {
+		platform = "OpenCode"
+	}
+	return platform + " reported a nonzero cost; automatic free routing has been paused"
 }
 
 type Runner struct {
@@ -47,6 +51,8 @@ type Runner struct {
 	councilRechecks     int
 	lastCheckpoint      time.Time
 	resumeID            string
+	freePlatforms       []string
+	limitedPlatforms    map[string]freeQuotaError
 	Invoke              func(context.Context, Connection, string, string, bool, string) (string, error)
 	Discover            func(context.Context) ([]string, error)
 	Now                 func() time.Time
@@ -78,6 +84,12 @@ func newRunner(paths Paths, settings Settings, repo, goal, resumeID string, emit
 		return nil, errors.New("choose an existing project folder")
 	}
 	r := &Runner{Paths: paths, Settings: settings, Repo: absolute, Emit: emit, MaxStalledCycles: 3}
+	if settings.Worker.Backend != "demo" {
+		r.freePlatforms, err = selectedFreePlatforms(os.Getenv(freePlatformsEnv))
+		if err != nil {
+			return nil, err
+		}
+	}
 	if resumeID != "" {
 		r.State, r.Dir, err = LoadRun(absolute, resumeID)
 		if err != nil {
@@ -479,12 +491,14 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			return Decision{}, err
 		}
 		connection := planner
+		routeModel := ""
+		allowCline := r.fullAccess() && !strings.HasPrefix(callLabel, "dialogue-") && !r.hasActiveMCP()
 		if autoFree {
 			preferred := r.State.PlannerModel
 			if member != "" {
 				preferred = r.State.SeniorModels[member]
 			}
-			models, err := r.freeModels(ctx, "planner", planner.Model, preferred, 0)
+			models, err := r.freeModels(ctx, "planner", planner.Model, preferred, 0, allowCline)
 			if err != nil {
 				return Decision{}, err
 			}
@@ -508,7 +522,8 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 				}
 				continue // Refresh prices again after waiting.
 			}
-			connection.Model, connection.RequireFree = model, true
+			routeModel = model
+			connection = freeModelConnection(planner, model)
 			r.modelAttempt("planner", model)
 		}
 		r.State.PlannerCalls++
@@ -529,7 +544,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			status = member + " · " + status
 		}
 		if autoFree {
-			status += " · " + connection.Model
+			status += " · " + routeModel
 		}
 		r.Emit(Event{Kind: "status", Text: status})
 		raw, err := r.invokeAgent(ctx, connection, prompt, label, true, "")
@@ -555,15 +570,19 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			err = errors.New("discussion budget reached; return messages=[] and choose a concrete action from the existing evidence")
 		}
 		if err == nil {
-			r.State.PlannerModel = connection.Model
+			selected := connection.Model
+			if autoFree {
+				selected = routeModel
+			}
+			r.State.PlannerModel = selected
 			if member != "" {
 				if r.State.SeniorModels == nil {
 					r.State.SeniorModels = map[string]string{}
 				}
-				r.State.SeniorModels[member] = connection.Model
+				r.State.SeniorModels[member] = selected
 			}
 			if autoFree {
-				if err := r.modelOutcome("planner", connection.Model, "", nil); err != nil {
+				if err := r.modelOutcome("planner", routeModel, "", nil); err != nil {
 					return answer, err
 				}
 			}
@@ -578,7 +597,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		lastFailure = err
 		kind := modelFailureKind(err, responseFailure)
 		if autoFree {
-			if saveErr := r.modelOutcome("planner", connection.Model, kind, err); saveErr != nil {
+			if saveErr := r.modelOutcome("planner", routeModel, kind, err); saveErr != nil {
 				return answer, errors.Join(err, saveErr)
 			}
 		}
@@ -591,6 +610,9 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			return answer, err
 		}
 		if kind == "quota" {
+			if autoFree && r.parkFreePlatform("planner", planner.Model, routeModel, allowCline) {
+				continue
+			}
 			return answer, err
 		}
 		if autoFree && kind == "unavailable" {
@@ -604,7 +626,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		if authRE.MatchString(err.Error()) {
 			return answer, authError{planner.Backend, Tail(err.Error(), 1200)}
 		}
-		if policyRE.MatchString(err.Error()) {
+		if kind == "policy" {
 			return answer, err
 		}
 		if transientRE.MatchString(err.Error()) {
@@ -620,7 +642,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			continue
 		}
 		if autoFree {
-			badModels[connection.Model]++
+			badModels[routeModel]++
 			prompt = decisionRetryPrompt(basePrompt, err)
 			r.Emit(Event{Kind: "status", Text: "Trying another verified free planner for this goal"})
 			continue
@@ -680,7 +702,7 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		if session := r.State.WorkerSession; session != nil {
 			preferred = session.Model
 		}
-		models, err := r.freeModels(ctx, "worker", r.Settings.Worker.Model, preferred, r.State.Cycle-1)
+		models, err := r.freeModels(ctx, "worker", r.Settings.Worker.Model, preferred, r.State.Cycle-1, r.fullAccess())
 		if err != nil {
 			return result, err
 		}
@@ -720,7 +742,13 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 		result.Model = model
 		r.Emit(Event{Kind: "status", Text: "Building: " + task.Title})
 		r.Emit(Event{Kind: "worker", Text: task.Title + " · " + model})
-		raw, err := r.invokeAgent(ctx, r.Settings.Worker, prompt, "worker", false, model)
+		worker := r.Settings.Worker
+		dispatchModel := model
+		if isClineFreeRoute(model) {
+			worker = freeModelConnection(worker, model)
+			dispatchModel = worker.Model
+		}
+		raw, err := r.invokeAgent(ctx, worker, prompt, "worker", false, dispatchModel)
 		var setup mcpSetupError
 		if errors.As(err, &setup) {
 			return result, err
@@ -765,10 +793,18 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 			return result, errors.Join(err, saveErr)
 		}
 		switch kind {
-		case "cost", "policy", "quota", "output_limit":
+		case "cost", "policy", "output_limit":
 			return result, err
+		case "quota":
+			if !r.parkFreePlatform("worker", r.Settings.Worker.Model, model, r.fullAccess()) {
+				return result, err
+			}
 		case "auth":
-			return result, authError{r.Settings.Worker.Backend, Tail(err.Error(), 1200)}
+			var account authError
+			if errors.As(err, &account) {
+				return result, err
+			}
+			return result, authError{worker.Backend, Tail(err.Error(), 1200)}
 		}
 		after, snapshotErr := WorkspaceSnapshot(ctx, r.Repo)
 		if snapshotErr != nil {
@@ -782,8 +818,10 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 			r.Emit(Event{Kind: "status", Text: "Worker stopped after edits; checking partial work before another assignment"})
 			return result, nil
 		}
-		if kind == "unavailable" {
-			r.Emit(Event{Kind: "status", Text: "Worker offer unavailable · refreshing the free catalog"})
+		if kind == "unavailable" || kind == "quota" {
+			if kind == "unavailable" {
+				r.Emit(Event{Kind: "status", Text: "Worker offer unavailable · refreshing the free catalog"})
+			}
 			continue
 		}
 		attempted[model] = true

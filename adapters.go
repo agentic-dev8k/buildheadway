@@ -95,6 +95,48 @@ func Compatible(ctx context.Context, connection Connection, paths Paths) error {
 	return nil
 }
 func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
+	var models []string
+	var primaryErr error
+	if _, held := r.limitedPlatforms["opencode"]; held {
+		primaryErr = errNoVerifiedFreeModels
+	} else {
+		models, primaryErr = r.discoverOpenCodeModels(ctx)
+	}
+	if len(r.freePlatforms) == 0 || (r.State.RunID != "" && !r.fullAccess()) {
+		return models, primaryErr
+	}
+	if err := compatibleFreeCline(ctx, r.Paths); err != nil {
+		r.Emit(Event{Kind: "status", Text: "Skipping optional free platforms · compatible Cline unavailable"})
+		return models, primaryErr
+	}
+	for _, platform := range r.freePlatforms {
+		if r.limitedPlatforms[platform].platform != "" {
+			continue
+		}
+		if err := freePlatformPrerequisite(platform, r.Paths); err != nil {
+			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · " + err.Error()})
+			continue
+		}
+		found, err := readAdditionalFreeCatalog(ctx, freeCatalogClient, platform)
+		if err != nil {
+			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · fresh catalog unavailable"})
+			continue
+		}
+		models = append(models, found...)
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if len(models) == 0 {
+		if primaryErr != nil {
+			return nil, primaryErr
+		}
+		return nil, errNoVerifiedFreeModels
+	}
+	return models, nil
+}
+
+func (r *Runner) discoverOpenCodeModels(ctx context.Context) ([]string, error) {
 	connection := r.Settings.Worker
 	if connection.Backend != "opencode" {
 		return nil, errors.New("automatic free-price verification currently requires the OpenCode worker adapter")
@@ -190,14 +232,11 @@ func openCodeRunArgs(executable, model, promptPath, repo string, planner, suppor
 	return append(args, "--file", promptPath)
 }
 func (r *Runner) requiresZeroCost(connection Connection, label string, planner bool) bool {
-	if !planner {
+	if !planner || connection.RequireFree {
 		return true
 	}
 	if connection.Backend != "opencode" {
 		return false
-	}
-	if connection.RequireFree {
-		return true
 	}
 	if r.State.Mode == "figureout" {
 		for _, member := range r.State.Team {
@@ -328,6 +367,39 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 		if connection.Provider != "" {
 			args = append(args, "--provider", connection.Provider)
 		}
+		if connection.RequireFree {
+			if !fullAccess {
+				return "", errors.New("free Cline runs require full-access goal mode")
+			}
+			switch connection.Provider {
+			case "cline":
+				if !clinePromotionID(model) {
+					return "", errors.New("choose an eligible Cline promotion")
+				}
+			case "openrouter":
+				if !providerModelID.MatchString(model) || !strings.HasSuffix(model, ":free") {
+					return "", errors.New("choose an eligible OpenRouter free variant")
+				}
+			default:
+				return "", errors.New("choose a supported free Cline provider")
+			}
+			if err := freePlatformPrerequisite(connection.Provider, r.Paths); err != nil {
+				return "", err
+			}
+			profile := clineFreeProfile(r.Paths, connection.Provider)
+			if connection.Provider == "openrouter" {
+				// The API key comes from the environment. An empty profile
+				// cannot inherit a custom endpoint or model from another login.
+				profile, err = os.MkdirTemp("", "buildheadway-cline-openrouter-")
+				if err != nil {
+					return "", err
+				}
+				defer os.RemoveAll(profile)
+			}
+			env = clineFreeEnv(env, connection.Provider)
+			env = setEnv(env, "CLINE_NO_INTERACTIVE", "1")
+			args = append(args, "--config", profile, "--compaction", "off")
+		}
 	case "gemini":
 		mode := "plan"
 		if fullAccess {
@@ -377,7 +449,13 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	zeroCost := r.requiresZeroCost(connection, label, planner)
 	observe := func(line string) {
 		if connection.Backend == "opencode" || connection.Backend == "cline" {
-			err := agentStreamError(connection.Backend, model, line, zeroCost)
+			var err error
+			if connection.Backend == "cline" && connection.RequireFree {
+				err = clineFreeStreamError(connection.Provider, model, line)
+			}
+			if err == nil {
+				err = agentStreamError(connection.Backend, model, line, zeroCost)
+			}
 			var unavailable freeOfferUnavailableError
 			if errors.As(err, &unavailable) {
 				// Keep reading this process so a later charge or blocker
@@ -411,6 +489,10 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	if blocker != nil {
 		// A genuine provider blocker keeps priority over the cancellation it
 		// caused, including a concurrent pause. Never turn it into fallback.
+		var account authError
+		if connection.Backend == "cline" && connection.RequireFree && errors.As(blocker, &account) {
+			blocker = freePlatformAuthError{connection.Provider, blocker}
+		}
 		return "", errors.Join(blocker, completeAgentOutput(result))
 	}
 	if captureErr := completeAgentOutput(result); captureErr != nil {
@@ -447,6 +529,9 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	if strings.TrimSpace(raw) == "" {
 		return "", errors.New("the agent returned no result")
+	}
+	if connection.Backend == "cline" && connection.RequireFree && !selectedClineModelReported(raw, connection.Provider, model) {
+		return "", freeRouteMismatchError{}
 	}
 	if zeroCost {
 		for _, line := range strings.Split(raw, "\n") {

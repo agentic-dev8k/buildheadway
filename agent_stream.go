@@ -10,15 +10,102 @@ import (
 )
 
 var agentLogFields = regexp.MustCompile(`(?:^|\s)([A-Za-z_.]+)=("(?:[^"\\]|\\.)*"|[^\s]+)`)
+var clineQuotaDiagnostic = regexp.MustCompile(`(?i)\b429\b|rate limit (?:exceeded|reached)|too many requests|free usage limit reached`)
 
 type freeOfferUnavailableError struct{ model string }
 
 func (e freeOfferUnavailableError) Error() string { return e.model + " is unavailable as a free offer" }
 
-type freeQuotaError struct{}
+type freeQuotaError struct{ platform string }
 
-func (freeQuotaError) Error() string {
-	return "OpenCode reported a free-tier rate limit. Wait for the provider limit to reset, then use /resume."
+func (e freeQuotaError) Error() string {
+	platform := e.platform
+	if platform == "" || platform == "opencode" {
+		platform = "OpenCode"
+	}
+	return platform + " reported a free-tier rate limit. Wait for the provider limit to reset, then use /resume."
+}
+
+type freeRouteMismatchError struct{}
+
+func (freeRouteMismatchError) Error() string {
+	return "Cline did not confirm the selected free model. Check the native connection before resuming."
+}
+
+type clineReportedModel struct {
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+}
+
+func selectedClineModelReported(raw, platform, model string) bool {
+	for _, line := range strings.Split(Clean(raw), "\n") {
+		var event struct {
+			Type  string             `json:"type"`
+			Model clineReportedModel `json:"model"`
+		}
+		if json.Unmarshal([]byte(line), &event) == nil && event.Type == "run_result" &&
+			event.Model.ID == model && event.Model.Provider == platform {
+			return true
+		}
+	}
+	return false
+}
+
+func clineFreeStreamError(platform, model, line string) error {
+	var event struct {
+		Type         string             `json:"type"`
+		Model        clineReportedModel `json:"model"`
+		FinishReason string             `json:"finishReason"`
+		Message      string             `json:"message"`
+		StatusCode   int                `json:"statusCode"`
+		Usage        struct {
+			TotalCost json.RawMessage `json:"totalCost"`
+		} `json:"usage"`
+		Event struct {
+			Type       string          `json:"type"`
+			ErrorClass string          `json:"errorClass"`
+			Cost       json.RawMessage `json:"cost"`
+			TotalCost  json.RawMessage `json:"totalCost"`
+			Error      struct {
+				Message    string `json:"message"`
+				StatusCode int    `json:"statusCode"`
+			} `json:"error"`
+		} `json:"event"`
+	}
+	if json.Unmarshal([]byte(Clean(line)), &event) != nil {
+		return nil
+	}
+	positive := func(value json.RawMessage) bool {
+		return len(value) > 0 && decimalPricing.Match(value) && !zeroCatalogPrice(value)
+	}
+	switch event.Type {
+	case "run_result":
+		if positive(event.Usage.TotalCost) {
+			return costError{platform}
+		}
+		if event.FinishReason == "completed" && (event.Model.ID != model || event.Model.Provider != platform) {
+			return freeRouteMismatchError{}
+		}
+	case "agent_event":
+		switch event.Event.Type {
+		case "usage":
+			if positive(event.Event.Cost) || positive(event.Event.TotalCost) {
+				return costError{platform}
+			}
+		case "error":
+			// Cline 3 classifies most provider rate limits as "unknown"
+			// and keeps the server diagnostic in its structured error event.
+			if event.Event.ErrorClass != "auth" && (event.Event.Error.StatusCode == 429 ||
+				clineQuotaDiagnostic.MatchString(event.Event.Error.Message)) {
+				return freeQuotaError{platform: platform}
+			}
+		}
+	case "error":
+		if event.StatusCode == 429 || clineQuotaDiagnostic.MatchString(event.Message) {
+			return freeQuotaError{platform: platform}
+		}
+	}
+	return nil
 }
 
 func openCodeFreeRouteError(model string, outer, data map[string]any) error {
