@@ -279,7 +279,7 @@ func checkCommandCodeEvent(row commandCodeResult, model string) error {
 	}
 	if row.Type == "event" && (row.Event.Type == "model_request_start" || row.Event.Type == "model_request_end") &&
 		row.Event.Model != commandCodeOllamaProvider+"/"+model {
-		return freeRouteMismatchError{}
+		return freeRouteMismatchError{"Command Code"}
 	}
 	return nil
 }
@@ -310,7 +310,7 @@ func decodeCommandCodeOutput(raw, model string) (string, error) {
 		return "", errors.New("Command Code did not complete the local run")
 	}
 	if !modelConfirmed {
-		return "", freeRouteMismatchError{}
+		return "", freeRouteMismatchError{"Command Code"}
 	}
 	if strings.TrimSpace(result.FinalText) == "" {
 		return "", errors.New("Command Code returned an empty local result")
