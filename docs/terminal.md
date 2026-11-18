@@ -1,10 +1,12 @@
 # Terminal interface
 
-Run `buildheadway` in your project to open the conversation. The interface shows the selected connection, harness phase, repair cycle and completed tasks. Larger windows also show senior/worker call counts from the latest progress event. These observations do not replace verification or senior approval.
+Run `buildheadway` in your project to open the conversation. The header shows your selected senior and project, then the free-model route. During a goal, the route shows price checks, the selected model and how many backups are ready. Wider windows also show the next candidate and both agent call counts.
+
+The route shows when a model is pinned, cooling down or paused. A backup is checked again before dispatch. Use `/routing` to inspect recorded decisions and `/models` to choose a free worker.
 
 ![Command palette with a preserved draft](assets/terminal-palette.png)
 
-This preview is rendered from an actual Linux terminal integration capture with simulated agents. It is not evidence of authenticated model inference or manual Windows/macOS terminal testing.
+This preview shows the command palette in an earlier Linux terminal integration capture with simulated agents.
 
 ## Find a command
 
