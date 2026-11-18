@@ -1,3 +1,10 @@
+# BuildHeadway 0.55.0 free offer routing — 2026-11-18
+
+- Started from `bounded-agent-probes-0.54` at `11afeb7b8cba71c44c04c450fdefd96ac27ceaa7`. Adapter tests reproduced ended offers and model-not-found events being returned as ordinary results before the fix.
+- Real subprocess fixtures distinguish the Console's specific model responses from its ambiguous rate-limit responses. Tests cover a repriced backup disappearing from the refreshed catalog, the hold surviving checkpoint reload across roles, pinned workers, an exhausted pool, partial edits, late charges, and a quota pause with a backup still present.
+- On a real Linux terminal, both the plain goal and custom workflow displayed the initial route and its backup, handled a simulated expired promotion, and passed actual Node.js verification. The onboarding session exercised refusal, read-only discovery, the MCP catalog and extension templates. Responsive rendering tests also cover narrow terminals and unsent drafts.
+- Routing tests use simulated model replies. Model prices are refreshed before each free call and the previous checkpoint format remains readable.
+
 # BuildHeadway 0.54.0 bounded agent version probes — 2026-11-18
 
 - Continued from the latest complete 0.53 review source `0e84ff8fbd3fc514a2f7ce618176fe15bb4b50b2` / draft PR #22 after confirming all eight native and packaging jobs passed. The retained installer had already advanced to guarded version 47 / 0.53, so the older completed 0.52 candidate was not allowed to overwrite it. No main merge, npm publication, release, deployment or access change was performed.
