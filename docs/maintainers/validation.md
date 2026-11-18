@@ -1,3 +1,9 @@
+# BuildHeadway 0.56.0 free platforms — 2026-11-18
+
+- Continued from `free-routing-0.55` at `24fba8fbf11a6a231c630a153889293deef148cb`. Added opt-in Cline and OpenRouter dispatch plus read-only Command Code listings and a native Codex sign-in check.
+- Read the official Cline promotional feed, OpenRouter tools catalog and Command Code model API. The initial public checks identified three Cline promotions, fourteen OpenRouter free tool model IDs and three Command Code free chat variants. The installed Cline 3.0.74 help and SDK confirmed configuration flags and the model/provider receipt shape.
+- Fixtures cover exact zero pricing, auxiliary charges, stale or paid variants, provider-wide limits, full-access versus restricted routes, protective pauses, MCP compatibility, partial edits, and Cline subprocess arguments and receipts. Tests make real local checks and simulated inference.
+
 # BuildHeadway 0.55.0 free offer routing — 2026-11-18
 
 - Started from `bounded-agent-probes-0.54` at `11afeb7b8cba71c44c04c450fdefd96ac27ceaa7`. Adapter tests reproduced ended offers and model-not-found events being returned as ordinary results before the fix.
