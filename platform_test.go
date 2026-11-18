@@ -60,6 +60,27 @@ func TestShimResolutionTreatsPathsAsData(t *testing.T) {
 	if _, err := ShimTarget("echo do-something & exit", t.TempDir()); err == nil {
 		t.Fatal("unsafe arbitrary batch wrapper was accepted")
 	}
+	root := filepath.Join(t.TempDir(), "npm with spaces")
+	entry := filepath.Join(root, "node_modules", "@kilocode", "cli", "bin", "kilo")
+	if err := os.MkdirAll(filepath.Dir(entry), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("#!/usr/bin/env node\r\nconsole.log('Kilo');\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	const globalShim = `@"%dp0%\node.exe" "%dp0%\node_modules\@kilocode\cli\bin\kilo" %*`
+	const localShim = `@"%~dp0\node.exe" "%~dp0\..\@kilocode\cli\bin\kilo" %*`
+	for dir, wrapper := range map[string]string{root: globalShim, filepath.Join(root, "node_modules", ".bin"): localShim} {
+		if target, err := ShimTarget(wrapper, dir); err != nil || target != entry {
+			t.Fatalf("extensionless npm target failed: %s %v", target, err)
+		}
+	}
+	if err := os.WriteFile(entry, []byte("#!/bin/sh\necho unexpected\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ShimTarget(globalShim, root); err == nil {
+		t.Fatal("extensionless non-Node script was accepted")
+	}
 }
 func TestRuntimeAssetsCoverAllSixBuildTargets(t *testing.T) {
 	for _, goos := range []string{"darwin", "linux", "windows"} {

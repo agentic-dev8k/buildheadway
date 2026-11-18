@@ -204,6 +204,7 @@ func RunProcess(ctx context.Context, argv []string, cwd, logPath, input string, 
 }
 
 var shimTarget = regexp.MustCompile(`(?i)"(?:%~dp0|%dp0%)[\\/]+([^"\r\n]+?\.(?:cjs|mjs|js|exe))"`)
+var extensionlessShimTarget = regexp.MustCompile(`(?i)"(?:%~dp0|%dp0%)[\\/]+([^"\r\n]+)"`)
 
 func ShimTarget(data, dir string) (string, error) {
 	matches := shimTarget.FindAllStringSubmatch(data, -1)
@@ -222,11 +223,37 @@ func ShimTarget(data, dir string) (string, error) {
 		}
 	}
 	if targetName == "" {
+		// npm also generates wrappers for Node entry points such as Kilo's
+		// bin/kilo. Inspect the entry point and keep launching Node directly.
+		for _, match := range extensionlessShimTarget.FindAllStringSubmatch(data, -1) {
+			target := filepath.Join(dir, filepath.FromSlash(strings.ReplaceAll(match[1], `\`, "/")))
+			if filepath.Ext(target) == "" && nodeScriptHeader(target) {
+				return target, nil
+			}
+		}
 		return "", errors.New("this Windows command wrapper does not expose a supported executable; install the agent's current native or npm release")
 	}
 	target := filepath.Join(dir, filepath.FromSlash(strings.ReplaceAll(targetName, `\`, "/")))
 	return filepath.Clean(target), nil
 }
+
+func nodeScriptHeader(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	var header [64]byte
+	n, _ := file.Read(header[:])
+	line, _, _ := strings.Cut(string(header[:n]), "\n")
+	line = strings.TrimSuffix(line, "\r")
+	return line == "#!/usr/bin/env node" || line == "#!/usr/bin/node"
+}
+
 func PreparedCommand(ctx context.Context, argv, env []string) (*exec.Cmd, error) {
 	if !isWindowsShim(argv[0]) {
 		return exec.CommandContext(ctx, argv[0], argv[1:]...), nil
