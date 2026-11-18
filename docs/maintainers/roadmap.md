@@ -16,6 +16,9 @@ BuildHeadway should grow through features that users can inspect and rely on. Ea
 - **0.47:** exclusive discovery ownership is acquired before changing preferences, and foreground cleanup retains ownership until its disabled state is durable.
 - **0.48:** saved offers can be searched and filtered in the CLI or terminal app without refreshing discovery or changing stored evidence.
 
+- **0.49–0.52:** saved evidence renders safely, retained-offer ages stay distinct, setup consent is visible, and targeted scans skip unrelated executables.
+- **0.53:** eight MCP presets and six editable extension templates have inspectable catalogs, scoped configuration previews and actual protocol-check tooling.
+
 ## Development loop
 
 1. Inspect the latest tested branch, open reviews, CI failures and unfinished uploads. Recover missing work before adding another feature.
