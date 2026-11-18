@@ -813,6 +813,15 @@ else if (args.includes('models') && args.includes('--refresh') && args.includes(
   const unselectedProbe = path.join(root, 'unselected-agent-probed.txt');
   const unselectedScript = path.join(agentTools, 'unselected-fixture.cjs');
   fs.writeFileSync(unselectedScript, `#!/usr/bin/env node
+if (process.env.BUILDHEADWAY_TEST_VERSION_MODE === 'large') {
+  console.log('probe-version-1');
+  process.stdout.write('x'.repeat(64 << 10));
+  process.exit(0);
+}
+if (process.env.BUILDHEADWAY_TEST_VERSION_MODE === 'exit') {
+  process.stderr.write('\\u001b[31mcredential\\u009bstale\\u001b[0m\\nunrelated second line\\n');
+  process.exit(7);
+}
 require('node:fs').appendFileSync(${JSON.stringify(unselectedProbe)}, 'version probe\\n');
 console.log('unselected-agent-fixture');
 `, {mode:0o755});
@@ -843,6 +852,14 @@ console.log('unselected-agent-fixture');
   const completeInventory = JSON.parse(scanRead(['--json']));
   assert.equal(completeInventory.agents.find(a => a.id === 'codex').installed, true);
   assert.ok(fs.existsSync(unselectedProbe), 'ordinary inventory must still probe other installed agents');
+  const versionProbe = mode => JSON.parse(execFileSync(process.execPath, [path.join(installed, 'npm/buildheadway.cjs'), 'scan', '--agent', 'codex', '--json'], {...scanOptions, env:{...scanOptions.env, BUILDHEADWAY_TEST_VERSION_MODE:mode}})).agents[0];
+  const oversizedProbe = versionProbe('large');
+  assert.equal(oversizedProbe.version, undefined);
+  assert.match(oversizedProbe.probe_error, /exceeded 16 KiB/);
+  const failedProbe = versionProbe('exit');
+  assert.equal(failedProbe.version, undefined);
+  assert.match(failedProbe.probe_error, /status 7: credential stale/);
+  assert.doesNotMatch(failedProbe.probe_error, /\\u001b|\\u009b|second line/);
   assert.deepEqual(fs.readFileSync(path.join(runDir, 'state.json')), beforeScan);
   // Exercise the delivered launcher and an actual hanging child, not a mock
   // invocation return: a received cost blocks before the runtime deadline.
