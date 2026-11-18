@@ -17,6 +17,30 @@ Edit the created `SKILL.md` or prompt, then run `buildheadway workflow NAME YOUR
 
 External tools use `buildheadway mcp add`, `check`, `enable`, `disable` and `remove`. See [MCP servers](mcp.md) for examples, supported senior adapters, credentials and recovery boundaries.
 
+## Choose editable starter instructions
+
+Inspect a template before creating a project or personal extension:
+
+```sh
+buildheadway extensions catalog
+buildheadway extensions catalog api-review
+buildheadway extensions init --template api-review api-contract
+buildheadway workflow --preview api-contract "preserve existing response fields"
+```
+
+| Template | Starting point |
+| --- | --- |
+| `general` | A focused implementation request with actual verification; the default |
+| `api-review` | API compatibility, input validation, failure responses and realistic request/response tests |
+| `test-coverage` | Behavioral regressions, boundary cases, interruption and retry coverage |
+| `docs-update` | Setup, command examples, prerequisites, links and troubleshooting |
+| `dependency-review` | Official release/advisory evidence, compatibility, lockfiles and affected checks |
+| `mcp-integration` | Provider configuration, directory scope, credential indirection, transport checks and authorized tool use |
+
+`extensions catalog --json` returns the original instructions for every template. `/extensions catalog [TEMPLATE]` inspects them in the terminal without changing an active goal or its draft. These commands work without loading project configuration, starting agents or installing tools.
+
+Add `--kind prompt` to create a prompt instead of a skill, and `--user` for personal configuration. The existing discovery, parameter substitution and project-over-personal precedence apply. Generated instructions remain editable; an existing extension is never overwritten. Selecting a template does not enable an MCP server, hook or service, and ordinary workflow execution retains the harness's verification and completion requirements.
+
 | In BuildHeadway | In another terminal | What it does |
 | --- | --- | --- |
 | `/workflows` | `buildheadway workflows` | List built-in and custom workflows with their sources |

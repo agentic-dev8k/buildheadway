@@ -48,15 +48,27 @@ func FormatExtensions(inventory ExtensionInventory) string {
 		fmt.Fprintf(&out, "%s · %s · %s\n  %s\n", item.Name, item.Kind, item.Description, item.Source)
 	}
 	fmt.Fprintf(&out, "\n%d verification hooks · %d MCP servers\n", len(inventory.Hooks), len(inventory.MCP))
-	out.WriteString("Create a skill: buildheadway extensions init NAME\nCreate a prompt: buildheadway extensions init --kind prompt NAME\nInspect hooks: buildheadway hooks\nInspect MCP: buildheadway mcp list")
+	out.WriteString("Create a skill: buildheadway extensions init NAME\nCreate a prompt: buildheadway extensions init --kind prompt NAME\nChoose a starter: buildheadway extensions catalog\nInspect hooks: buildheadway hooks\nInspect MCP: buildheadway mcp list\nFind MCP presets: buildheadway mcp catalog")
 	return out.String()
 }
 
 func InitExtension(paths Paths, repo, name, kind string, personal bool) (Workflow, error) {
+	return InitExtensionTemplate(paths, repo, name, kind, personal, "general")
+}
+
+func InitExtensionTemplate(paths Paths, repo, name, kind string, personal bool, template string) (Workflow, error) {
 	var result Workflow
 	if !workflowName.MatchString(name) || (kind != "skill" && kind != "prompt") {
 		return result, errors.New("choose a lowercase extension name and kind skill or prompt")
 	}
+	if template == "" {
+		return result, errors.New("choose an extension template from extensions catalog")
+	}
+	templates, err := selectExtensionTemplates(template)
+	if err != nil {
+		return result, err
+	}
+	selected := templates[0]
 	root, directory := repo, ".buildheadway-skills"
 	if kind == "prompt" {
 		directory = ".buildheadway-prompts"
@@ -70,7 +82,7 @@ func InitExtension(paths Paths, repo, name, kind string, personal bool) (Workflo
 	if root == "" {
 		return result, errors.New("no extension configuration directory")
 	}
-	root, err := filepath.Abs(root)
+	root, err = filepath.Abs(root)
 	if err != nil {
 		return result, err
 	}
@@ -102,7 +114,11 @@ func InitExtension(paths Paths, repo, name, kind string, personal bool) (Workflo
 	if kind == "skill" {
 		filename = filepath.Join(parent, "SKILL.md")
 	}
-	body := "---\nname: " + name + "\ndescription: Custom " + name + " workflow\n---\nWork on this project request: $ARGUMENTS\nRead the project's guidance and inspect the relevant files before changing code.\nPreserve unrelated work. Implement the requested behavior and run meaningful checks.\nReport the actual changes, executed verification, and any remaining blockers.\n"
+	description := selected.Description
+	if template == "general" {
+		description = "Custom " + name + " workflow"
+	}
+	body := "---\nname: " + name + "\ndescription: " + description + "\n---\n" + selected.Body
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if errors.Is(err, os.ErrExist) {
 		return result, errors.New("extension already exists; its files were left unchanged")
@@ -127,6 +143,7 @@ func runExtensionsCommand(paths Paths, args []string) int {
 	project := flags.String("project", ".", "Project folder")
 	personal := flags.Bool("user", false, "Create the extension in personal configuration")
 	kind := flags.String("kind", "skill", "Extension type: skill or prompt")
+	template := flags.String("template", "general", "Starter instructions from extensions catalog")
 	asJSON := flags.Bool("json", false, "Print JSON")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -138,12 +155,23 @@ func runExtensionsCommand(paths Paths, args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	if action != "init" && (*personal || *kind != "skill") {
-		return fail(errors.New("--user and --kind apply only to extensions init"))
+	if action != "init" && (*personal || *kind != "skill" || *template != "general") {
+		return fail(errors.New("--user, --kind and --template apply only to extensions init"))
 	}
 	var value any
 	var formatted string
 	switch action {
+	case "catalog":
+		if len(flags.Args()) > 1 {
+			return fail(errors.New("extensions catalog accepts at most one template name"))
+		}
+		id := ""
+		if len(flags.Args()) == 1 {
+			id = flags.Args()[0]
+		}
+		var items []ExtensionTemplate
+		items, err = selectExtensionTemplates(id)
+		value, formatted = items, formatExtensionTemplates(items)
 	case "list":
 		if len(flags.Args()) != 0 {
 			return fail(errors.New("extensions list accepts no names"))
@@ -153,14 +181,14 @@ func runExtensionsCommand(paths Paths, args []string) int {
 		value, formatted = inventory, FormatExtensions(inventory)
 	case "init":
 		if len(flags.Args()) != 1 {
-			return fail(errors.New("usage: buildheadway extensions init [--kind skill|prompt] [--user] NAME"))
+			return fail(errors.New("usage: buildheadway extensions init [--template TEMPLATE] [--kind skill|prompt] [--user] NAME"))
 		}
 		var workflow Workflow
-		workflow, err = InitExtension(paths, repo, flags.Args()[0], *kind, *personal)
+		workflow, err = InitExtensionTemplate(paths, repo, flags.Args()[0], *kind, *personal, *template)
 		value = workflow
 		formatted = "Created " + workflow.Source + ". Edit its instructions, then run buildheadway workflow " + workflow.Name + " YOUR_REQUEST."
 	default:
-		return fail(errors.New("use extensions list or extensions init NAME"))
+		return fail(errors.New("use extensions catalog, extensions list or extensions init NAME"))
 	}
 	if err != nil {
 		return fail(err)

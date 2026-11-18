@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.52.0"
+const Version = "0.53.0"
 
 type Paths struct {
 	Config string `json:"config"`

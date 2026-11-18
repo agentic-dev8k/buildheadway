@@ -26,6 +26,8 @@ python3 release.py --output dist
 
 The release command runs source tests, native smoke/installer checks and actual npm install/launch/upgrade/integrity/removal tests. Cross-compilation alone does not validate native execution on another OS. CI runs race and package tests on Windows, macOS, and Linux. Ordinary tests make no model calls; opt-in service tests and their requirements are described in [terminal usage](docs/usage.md#source-and-rebuilding).
 
+When changing MCP preset versions, also run `python3 scripts/mcp_presets_protocol_test.py`. It requires Node.js 24+/npx, uvx and a compatible Python runtime, downloads the six pinned local providers, and checks real initialization/tool discovery through the production CLI. `--remote` additionally checks public Context7; GitHub account authentication is not attempted. These opt-in checks call no provider tool and no model. Keep fixture-based native regressions for offline configuration, previews, credential indirection and goal/draft preservation.
+
 Keep regression coverage for fresh zero-price dispatch, explicit model choices, budgets, provider blockers, task handoffs, saved-run compatibility, executed acceptance evidence, source consistency, and senior vetoes. Do not make a failing gate pass merely to finish a goal.
 
 Keep the root README concise. Put user guides under `docs/` and maintainer records under `docs/maintainers/`; fix links and package coverage when moving them. Preserve the approved image bytes. See [publishing](docs/maintainers/publishing.md) for publication, which is separate from building a local package.

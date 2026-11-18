@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.53.0 — 2026-11-17
+
+- Add eight MCP presets with pinned local provider packages, directory scope, credential-variable indirection, read-only filesystem defaults and offline configuration previews.
+- Add six editable extension templates, catalog inspection in the CLI/terminal app, and syntax-only preset/template completion.
+- Preserve existing project checks, budgets, saved goals and drafts; cover public CLI, installed-package and real terminal workflows. Add opt-in upstream MCP protocol checks.
+
 ## 0.52.0 — 2026-11-17
 
 - Targeted `scan --agent NAME` probes only the selected registered agent. Unknown names fail before executable discovery, preventing unrelated installed CLIs from running during invalid or focused diagnostics. Unfiltered inventory retains the full registry and display order.

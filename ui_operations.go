@@ -173,10 +173,22 @@ func (m *appModel) projectCommand(text string) (tea.Cmd, bool) {
 			var err error
 			switch command {
 			case "/extensions":
+				if argument == "catalog" || strings.HasPrefix(argument, "catalog ") {
+					var items []ExtensionTemplate
+					items, err = selectExtensionTemplates(strings.TrimSpace(strings.TrimPrefix(argument, "catalog")))
+					formatted = formatExtensionTemplates(items)
+					break
+				}
 				var inventory ExtensionInventory
 				inventory, err = InspectExtensions(paths, repo)
 				formatted = FormatExtensions(inventory)
 			case "/mcp":
+				if argument == "catalog" || strings.HasPrefix(argument, "catalog ") {
+					var items []MCPPreset
+					items, err = selectMCPPresets(strings.TrimSpace(strings.TrimPrefix(argument, "catalog")))
+					formatted = formatMCPPresets(items)
+					break
+				}
 				var config ProjectConfig
 				config, err = LoadProjectConfig(repo)
 				formatted = FormatMCPServers(config.MCPServers)
