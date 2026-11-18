@@ -1,3 +1,9 @@
+# BuildHeadway 0.58.0 anonymous Kilo Gateway route — 2026-11-18
+
+- Continued from `command-code-local-platform-0.57` at `98d90fca245ca16d9ca008b959a3a61704438b42`. Added a native Kilo route for verified zero-price models with tool support.
+- Kilo CLI 7.8.27 did not recognize a current free model from its bundled catalog. Loading the live model metadata into the isolated profile made the model selectable. The real BuildHeadway adapter completed an anonymous live request using `liquid/lfm-3-1.7b:free` and verified the selected model and zero-cost session response.
+- The native CLI emitted a provider diagnostic before retrying a simulated HTTP 429. Regression tests cover that diagnostic, structured quota errors, expired offers, model and cost validation, and failover from Kilo to Ollama.
+
 # BuildHeadway 0.57.0 local Command Code route — 2026-11-18
 
 - Continued from `additional-free-platforms-0.56` at `13c89ff4fa672d41c029d839f5f17eea4eeea475`. Added installed Ollama model discovery, native Command Code setup and local dispatch for eligible full-access goals.
