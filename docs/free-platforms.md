@@ -1,6 +1,6 @@
 # Free platforms
 
-OpenCode is the default zero-price pool. Full-access goals can also use Cline promotions, OpenRouter free variants, and local Ollama models through Command Code. BuildHeadway refreshes eligibility before dispatch and pins the selected provider and model. A known provider limit holds that platform out of the rest of the run. Automatic selection then checks the other enabled platforms. Explicit model choices pause at their provider limit.
+OpenCode is the default zero-price pool. Full-access goals can also use Cline promotions, OpenRouter free variants, keyless Kilo Gateway offers, and local Ollama models through Command Code. BuildHeadway refreshes eligibility before dispatch and pins the selected provider and model. A known provider limit holds that platform out of the rest of the run. Automatic selection then checks the other enabled platforms. Explicit model choices pause at their provider limit.
 
 ## Inspect available platforms
 
@@ -10,18 +10,34 @@ buildheadway freebies platforms --check
 buildheadway scan --models --agent opencode
 ```
 
-The first command prints setup details. The second reads the official public Cline, OpenRouter, and Command Code catalogs, verifies configured local Ollama models, and checks the local Codex sign-in type. Use `--json` for scripts or `/freebies platforms check` in the terminal app. Providers determine hosted account eligibility and remaining quota.
+The first command prints setup details. The second reads the official public Cline, OpenRouter, Kilo, and Command Code catalogs, verifies configured local Ollama models, and checks the local Codex sign-in type. Use `--json` for scripts or `/freebies platforms check` in the terminal app. Providers determine hosted eligibility and quota.
 
 | Platform | How BuildHeadway uses it | Setup |
 | --- | --- | --- |
 | OpenCode | Default automatic pool | A compatible OpenCode CLI |
 | Cline | Optional automatic pool from its official free promotion list | Cline CLI and native sign-in to the managed profile |
 | OpenRouter | Optional automatic pool of tool-capable free variants with zero listed prices | Cline CLI and `OPENROUTER_API_KEY` |
+| Kilo Gateway | Optional keyless pool of tool-capable free variants and Kilo Auto Free | Native Kilo CLI |
 | Command Code hosted | Discovery of published free model IDs | Manage offers in the native Command Code CLI |
 | Ollama through Command Code | Optional automatic pool of installed, tool-capable local models | Ollama running on loopback and a compatible native Command Code CLI with headless sign-in |
 | Codex | Senior connection using your own account allowance | Sign in with ChatGPT through Codex |
 
 The Command Code public model API lists hosted IDs and supported endpoints. The automatic Command Code route uses the local Ollama catalog below. See [Command Code models](https://commandcode.ai/models) and [the model API](https://commandcode.ai/docs/provider).
+
+## Enable Kilo Gateway
+
+Install the native Kilo CLI and enable its route in the same terminal.
+
+```sh
+npm install --global @kilocode/cli
+buildheadway freebies platforms --check
+export BUILDHEADWAY_FREE_PLATFORMS=kilo
+buildheadway
+```
+
+In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'kilo'`.
+
+BuildHeadway uses an isolated Kilo profile and verifies tool support and zero pricing against the live Gateway catalog. Eligible models appear with a `kilo/` prefix in `/models`. Kilo Gateway allows anonymous free requests and applies quota per IP address. See [Kilo Gateway authentication](https://kilo.ai/docs/gateway/authentication) and [models and providers](https://kilo.ai/docs/gateway/models-and-providers).
 
 ## Enable Ollama through Command Code
 
@@ -36,7 +52,7 @@ export BUILDHEADWAY_FREE_PLATFORMS=ollama
 buildheadway
 ```
 
-In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama'`. To enable all optional routes together, use `cline,openrouter,ollama` as the value.
+In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama'`. To enable all optional routes together, use `cline,openrouter,kilo,ollama` as the value.
 
 Command Code's headless CLI requires an existing native login. BuildHeadway launches it in local-only mode with the selected installed model and a keyless loopback endpoint. Setup adds the `buildheadway-ollama` provider to `~/.commandcode/providers.json` and preserves other providers. Run setup again after installing new models. Any Command Code feature model overrides must also resolve to verified models in that local provider. See [Command Code headless authentication](https://commandcode.ai/docs/headless) and [Ollama BYOK configuration](https://commandcode.ai/docs/byok).
 
