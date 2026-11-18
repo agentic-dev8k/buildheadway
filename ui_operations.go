@@ -43,6 +43,7 @@ func (m *appModel) startQueue(all bool) tea.Cmd {
 	}
 	m.busy, m.mode, m.stage = true, "chat", "Starting queued goals"
 	m.progress = Progress{}
+	m.freeRoute = FreeRoute{}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel, m.jobDone = cancel, make(chan struct{})
 	paths, settings, repo, events, done := m.paths, m.settings, m.repo, m.events, m.jobDone

@@ -218,7 +218,8 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 		r.State.Status = "interrupted"
 		r.Emit(Event{Kind: "paused", Text: "Paused. Your progress is saved; use /resume."})
 	}
-	if errors.As(err, &limit) {
+	var quota freeQuotaError
+	if errors.As(err, &limit) || errors.As(err, &quota) {
 		r.State.Status = "paused"
 	}
 	var pause runPauseError
@@ -499,9 +500,10 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			if len(eligible) == 0 {
 				return Decision{}, lastFailure
 			}
-			model, until := r.readyModel("planner", eligible)
+			route := r.readyRoute("planner", eligible, pinnedModel(planner.Model))
+			model := route.Model
 			if model == "" {
-				if err := r.waitForModels(ctx, "planner", until); err != nil {
+				if err := r.waitForModels(ctx, "planner", route.RetryAt); err != nil {
 					return Decision{}, err
 				}
 				continue // Refresh prices again after waiting.
@@ -574,8 +576,9 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 			return answer, err
 		}
 		lastFailure = err
+		kind := modelFailureKind(err, responseFailure)
 		if autoFree {
-			if saveErr := r.modelOutcome("planner", connection.Model, modelFailureKind(err, responseFailure), err); saveErr != nil {
+			if saveErr := r.modelOutcome("planner", connection.Model, kind, err); saveErr != nil {
 				return answer, errors.Join(err, saveErr)
 			}
 		}
@@ -586,6 +589,13 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		}
 		if errors.As(err, &charge) {
 			return answer, err
+		}
+		if kind == "quota" {
+			return answer, err
+		}
+		if autoFree && kind == "unavailable" {
+			r.Emit(Event{Kind: "status", Text: "Planner offer unavailable · refreshing the free catalog"})
+			continue
 		}
 		var authentication authError
 		if errors.As(err, &authentication) {
@@ -689,9 +699,10 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 			eligible = models
 			failures = nil
 		}
-		model, until := r.readyModel("worker", eligible)
+		route := r.readyRoute("worker", eligible, pinnedModel(r.Settings.Worker.Model))
+		model := route.Model
 		if model == "" {
-			if err := r.waitForModels(ctx, "worker", until); err != nil {
+			if err := r.waitForModels(ctx, "worker", route.RetryAt); err != nil {
 				return result, err
 			}
 			continue // Cooldowns never replace a fresh price check.
@@ -754,7 +765,7 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 			return result, errors.Join(err, saveErr)
 		}
 		switch kind {
-		case "cost", "policy", "output_limit":
+		case "cost", "policy", "quota", "output_limit":
 			return result, err
 		case "auth":
 			return result, authError{r.Settings.Worker.Backend, Tail(err.Error(), 1200)}
@@ -770,6 +781,10 @@ func (r *Runner) workOnce(ctx context.Context, task Task, continuation string) (
 			r.note("partial-worker-recovery", result.Error)
 			r.Emit(Event{Kind: "status", Text: "Worker stopped after edits; checking partial work before another assignment"})
 			return result, nil
+		}
+		if kind == "unavailable" {
+			r.Emit(Event{Kind: "status", Text: "Worker offer unavailable · refreshing the free catalog"})
+			continue
 		}
 		attempted[model] = true
 		failures = append(failures, model+": "+Tail(err.Error(), 1600))

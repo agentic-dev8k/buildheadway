@@ -91,6 +91,7 @@ type appModel struct {
 	loginTarget       Connection
 	resumeAfterLogin  bool
 	progress          Progress
+	freeRoute         FreeRoute
 	resumeRunID       string
 }
 
@@ -316,6 +317,7 @@ func (m *appModel) startGoal(text string, resume bool, ids ...string) tea.Cmd {
 	m.stage = "Planning"
 	m.mode = "chat"
 	m.progress = Progress{}
+	m.freeRoute = FreeRoute{}
 	id := "latest"
 	if len(ids) > 0 && ids[0] != "" {
 		id = ids[0]
@@ -442,6 +444,7 @@ func (m *appModel) handle(text string) tea.Cmd {
 			return nil
 		}
 		m.repo = absolute
+		m.freeRoute = FreeRoute{}
 		m.add("Project", absolute)
 		if m.connected {
 			m.mode = "chat"
@@ -690,6 +693,8 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case "progress":
 			m.progress = msg.Value.(Progress)
 			m.resumeRunID = m.progress.RunID
+		case "free-route":
+			m.freeRoute = msg.Value.(FreeRoute)
 		case "assistant":
 			m.add("BuildHeadway", msg.Text)
 		case "discussion":
@@ -743,6 +748,9 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case "finished":
 			result := msg.Value.(finishedMsg)
 			m.busy = false
+			if m.freeRoute.State != "empty" && m.freeRoute.State != "quota" {
+				m.freeRoute = FreeRoute{}
+			}
 			if result.RunID != "" {
 				m.resumeRunID = result.RunID
 			}
@@ -754,6 +762,9 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if result.Err != nil && !errors.Is(result.Err, context.Canceled) {
 				m.stage = "Needs attention"
+				if result.Status == "paused" || m.freeRoute.State == "empty" || m.freeRoute.State == "quota" {
+					m.stage = "Paused"
+				}
 				m.add("BuildHeadway", result.Err.Error()+"\nUse /status to inspect saved progress, then /resume.")
 				var account authError
 				if errors.As(result.Err, &account) {

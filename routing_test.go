@@ -61,7 +61,7 @@ func TestRoutingRemembersFailureAcrossAssignmentsAndResume(t *testing.T) {
 		t.Fatalf("health did not survive recovery: %+v %+v", failed, working)
 	}
 	*now = now.Add(16 * time.Second)
-	if model, _ := resume.readyModel("worker", []string{"opencode/first"}); model == "" {
+	if route := resume.readyRoute("worker", []string{"opencode/first"}, false); route.Model == "" {
 		t.Fatal("a recovered model could not be probed again")
 	}
 	if r.State.modelHealth("planner", "opencode/first") != nil {
