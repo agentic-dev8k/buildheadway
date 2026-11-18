@@ -108,6 +108,9 @@ func runFreebiesCommand(paths Paths, args []string) int {
 	if action == "offers" {
 		return runFreebieOffersCommand(paths, args)
 	}
+	if action == "platforms" {
+		return runFreePlatformsCommand(paths, args)
+	}
 	f := flag.NewFlagSet("buildheadway freebies "+action, flag.ContinueOnError)
 	asJSON := f.Bool("json", false, "Output JSON")
 	interval := f.Duration("interval", 30*time.Minute, "Discovery interval, 15m–24h (enable/watch only)")

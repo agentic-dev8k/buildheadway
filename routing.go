@@ -126,6 +126,10 @@ func modelFailureKind(err error, response bool) string {
 	if errors.As(err, &authentication) || authRE.MatchString(err.Error()) {
 		return "auth"
 	}
+	var mismatch freeRouteMismatchError
+	if errors.As(err, &mismatch) {
+		return "policy"
+	}
 	if policyRE.MatchString(err.Error()) {
 		return "policy"
 	}
@@ -207,7 +211,7 @@ func (r *Runner) modelOutcome(role, model, kind string, callErr error) error {
 func pinnedModel(model string) bool { return model != "" && model != "auto" }
 
 // Never use saved health as evidence of current pricing or availability.
-func (r *Runner) freeModels(ctx context.Context, role, requested, preferred string, rotation int) ([]string, error) {
+func (r *Runner) freeModels(ctx context.Context, role, requested, preferred string, rotation int, allowCline bool) ([]string, error) {
 	pinned := pinnedModel(requested)
 	r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "checking", Pinned: pinned}})
 	models, err := r.Discover(ctx)
@@ -226,6 +230,12 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	var firstRecheck time.Time
 	now := r.routeNow()
 	for _, model := range models {
+		if isClineFreeRoute(model) && !allowCline {
+			continue
+		}
+		if _, blocked := r.limitedPlatforms[freePlatformForModel(model)]; blocked {
+			continue
+		}
 		if until := r.offerHold(model); until.After(now) {
 			if firstRecheck.IsZero() || until.Before(firstRecheck) {
 				firstRecheck = until
@@ -236,6 +246,12 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 	}
 	models = eligible
 	if len(models) == 0 {
+		for _, platform := range append([]string{"opencode"}, r.freePlatforms...) {
+			if quota, held := r.limitedPlatforms[platform]; held && (platform == "opencode" || allowCline) {
+				r.Emit(Event{Kind: "free-route", Value: FreeRoute{Role: role, State: "quota"}})
+				return nil, quota
+			}
+		}
 		route := FreeRoute{Role: role, State: "empty", Pinned: pinned, RetryAt: firstRecheck}
 		if pinned {
 			route.Model = requested
@@ -264,6 +280,33 @@ func (r *Runner) freeModels(ctx context.Context, role, requested, preferred stri
 		return failures(models[i]) < failures(models[j])
 	})
 	return models, nil
+}
+
+func (r *Runner) parkFreePlatform(role, requested, model string, allowCline bool) bool {
+	if pinnedModel(requested) || !allowCline || len(r.freePlatforms) == 0 {
+		return false
+	}
+	platform := freePlatformForModel(model)
+	if platform == "" || (platform != "opencode" && !contains(r.freePlatforms, platform)) {
+		return false
+	}
+	if r.limitedPlatforms == nil {
+		r.limitedPlatforms = map[string]freeQuotaError{}
+	}
+	r.limitedPlatforms[platform] = freeQuotaError{platform: platform}
+	message := platform + " reached its free limit · checking the other enabled platforms"
+	r.note("model-platform-limit", role+" · "+message)
+	r.Emit(Event{Kind: "status", Text: message})
+	return true
+}
+
+func (r *Runner) hasActiveMCP() bool {
+	for _, server := range r.State.Config.MCPServers {
+		if !server.Disabled {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runner) offerHold(model string) time.Time {

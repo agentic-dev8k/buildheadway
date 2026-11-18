@@ -379,12 +379,18 @@ func (m *appModel) selectModels() tea.Cmd {
 			return
 		}
 		defer os.RemoveAll(dir)
+		platforms, err := selectedFreePlatforms(os.Getenv(freePlatformsEnv))
+		if err != nil {
+			events <- Event{Kind: "models", Value: modelsMsg{Err: err}}
+			return
+		}
 		runner := Runner{Paths: paths, Settings: settings, Repo: repo, Dir: dir, Emit: func(event Event) {
 			select {
 			case events <- event:
 			case <-ctx.Done():
 			}
 		}}
+		runner.freePlatforms = platforms
 		models, err := runner.discoverModels(ctx)
 		events <- Event{Kind: "models", Value: modelsMsg{models, err}}
 	}()
@@ -477,7 +483,7 @@ func (m *appModel) handle(text string) tea.Cmd {
 		}
 		return nil
 	case text == "/help":
-		m.add("Help", "Type a message to start a goal.\n/about [AGENT] · project credits and adapter capabilities\n/credits [AGENT] · upstream agent and library acknowledgments\n/setup · inspect agents and review installation\n/freebies [offers [SEARCH]|check|watch|stop] · saved offers and discovery\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions [catalog [TEMPLATE]] · customization and extension starters\n/mcp [catalog [PRESET]] · configured servers and MCP presets\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/commands · find built-in commands\n/inputs [PROMPT_NAME] · inspect actual saved agent prompts\n/browser · browser runtime status\n/browser evidence · inspect saved screenshot integrity\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
+		m.add("Help", "Type a message to start a goal.\n/about [AGENT] · project credits and adapter capabilities\n/credits [AGENT] · upstream agent and library acknowledgments\n/setup · inspect agents and review installation\n/freebies [offers [SEARCH]|platforms [check]|check|watch|stop] · saved offers and discovery\n/figureout GOAL · autonomous senior team with full access\n/team · senior connections\n/attach AGENT [MODEL] · attach an installed senior\n/detach NAME · remove an attached senior\n/discussion [ID] · saved agent conversation\n/workflows · reusable workflows, skills and prompts\n/extensions [catalog [TEMPLATE]] · customization and extension starters\n/mcp [catalog [PRESET]] · configured servers and MCP presets\n/workflow NAME [arguments] · run a workflow\n/review, /debug, /test, /docs · built-in workflows\n/skills [NAME] · inspect custom skills\n/prompts [NAME] · inspect prompt templates\n/steer DIRECTION · redirect the active goal\n/steering · pending and applied directions\n/hooks · configured verification hooks\n/acceptance · requirement coverage and executed evidence\n/context · prompt sizes and configured allowance\n/routing · free-model health, cooldowns and recent decisions\n/commands · find built-in commands\n/inputs [PROMPT_NAME] · inspect actual saved agent prompts\n/browser · browser runtime status\n/browser evidence · inspect saved screenshot integrity\n/logs [LOG_NAME] · inspect saved process logs\n/status · goal, phase, calls, and checks\n/tasks · durable task history\n/history [SEARCH] · saved goals\n/plan GOAL · save a plan before implementation\n/init · project settings and BUILDHEADWAY.md\n/config · show effective project settings\n/check · run verification without a model\n/diff · inspect Git changes\n/report [ID] · run report\n/export [ID] · save a Markdown report\n/memory · saved project notes\n/remember NOTE · save guidance\n/buildheadwayt ID · remove a note\n/events · recent harness activity\n/queue [add GOAL | remove ID | move ID POSITION | run]\n/next · run one saved queued goal\n/doctor · installation and settings diagnostics\n/agents · detected installations and versions\n/connect · choose or repair a connection\n/login · sign in using your agent\n/models · choose a free worker\n/model ID · change the planner model\n/open FOLDER · switch projects\n/resume [ID] · inspect saved work and continue\n/stop · pause\n/quit · close\nAlt+Enter adds a newline. Page Up/Down scrolls.")
 		return nil
 	case text == "/routing" || text == "/acceptance" || text == "/status" || text == "/tasks" || text == "/history" || text == "/events":
 		kind, repo := strings.TrimPrefix(text, "/"), m.repo
@@ -526,6 +532,12 @@ func (m *appModel) handle(text string) tea.Cmd {
 			m.add("Discovery", formatFreebies(state))
 		}
 		return nil
+	case text == "/freebies platforms" || text == "/freebies platforms check":
+		paths, check := m.paths, text == "/freebies platforms check"
+		return func() tea.Msg {
+			rows, err := freePlatformStatuses(context.Background(), paths, check)
+			return inspectionMsg{"Free platforms", formatFreePlatforms(rows), err}
+		}
 	case text == "/freebies check":
 		return m.checkFreebieOffers()
 	case text == "/freebies offers" || strings.HasPrefix(text, "/freebies offers "):
@@ -767,7 +779,8 @@ func (m appModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.add("BuildHeadway", result.Err.Error()+"\nUse /status to inspect saved progress, then /resume.")
 				var account authError
-				if errors.As(result.Err, &account) {
+				var platformAuth freePlatformAuthError
+				if errors.As(result.Err, &account) && !errors.As(result.Err, &platformAuth) {
 					m.add("BuildHeadway", "Use /login to repair the connection.")
 					m.loginTarget = m.settings.Planner
 					if account.agent == m.settings.Worker.Backend {
