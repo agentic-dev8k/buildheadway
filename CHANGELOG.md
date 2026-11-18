@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.54.0 — 2026-11-18
+
+- Bound every installed-agent version probe to 16 KiB and four seconds, with a 512-byte inert first-line version. Excessive or empty output is rejected without blocking independent inventory entries.
+- Report cancellation, timeout, nonzero exit status and a sanitized first-line diagnostic separately. Native and installed-package regressions cover large output, controls, empty results, failed exits and prompt cancellation.
+
 ## 0.53.0 — 2026-11-17
 
 - Add eight MCP presets with pinned local provider packages, directory scope, credential-variable indirection, read-only filesystem defaults and offline configuration previews.

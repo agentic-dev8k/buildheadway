@@ -262,6 +262,24 @@ func TestFigureOutUIQueueAndHelp(t *testing.T) {
 // Real subprocess probe: exercises argv, stdin, env and adapter response
 // parsing on every native CI OS without requiring an account or model call.
 func TestMain(m *testing.M) {
+	if mode := os.Getenv("BUILDHEADWAY_TEST_VERSION_PROBE"); mode != "" {
+		switch mode {
+		case "large":
+			fmt.Println("probe-version-1")
+			fmt.Print(strings.Repeat("x", 64<<10))
+		case "exit":
+			fmt.Fprintln(os.Stderr, "\x1b[31mcredential\u009bstale\x1b[0m")
+			fmt.Fprintln(os.Stderr, "unrelated second line")
+			os.Exit(7)
+		case "empty":
+		case "hold":
+			time.Sleep(10 * time.Second)
+		default:
+			fmt.Fprintln(os.Stderr, "unknown version fixture")
+			os.Exit(9)
+		}
+		os.Exit(0)
+	}
 	if os.Getenv("BUILDHEADWAY_TEST_SCAN_FIXTURE") == "1" {
 		args, _ := json.Marshal(os.Args[1:])
 		if path := os.Getenv("BUILDHEADWAY_TEST_SCAN_CAPTURE"); path != "" {

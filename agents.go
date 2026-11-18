@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 type AgentDefinition struct {
@@ -182,6 +185,84 @@ func ToolEnv(paths Paths) []string {
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
 
+const agentVersionProbeOutputLimit = 16 << 10
+
+// A version command is untrusted local software. Accept every write so the
+// child cannot block on a full pipe, but retain only a small diagnostic prefix.
+type boundedAgentProbeOutput struct {
+	mu    sync.Mutex
+	data  []byte
+	total int64
+}
+
+func (w *boundedAgentProbeOutput) Write(data []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.total += int64(len(data))
+	if available := agentVersionProbeOutputLimit - len(w.data); available > 0 {
+		w.data = append(w.data, data[:min(available, len(data))]...)
+	}
+	return len(data), nil
+}
+
+func (w *boundedAgentProbeOutput) result() (string, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return string(w.data), w.total > agentVersionProbeOutputLimit
+}
+
+func agentProbeLine(text string, limit int) (string, bool) {
+	text = strings.ToValidUTF8(Clean(text), "\uFFFD")
+	if index := strings.IndexByte(text, '\n'); index >= 0 {
+		text = text[:index]
+	}
+	text = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text))
+	if len(text) <= limit {
+		return text, false
+	}
+	end := limit
+	for end > 0 && !utf8.ValidString(text[:end]) {
+		end--
+	}
+	return text[:end], true
+}
+
+func agentVersionProbeError(parent, probe context.Context, runErr error, output string, outputTruncated bool) string {
+	detail, _ := agentProbeLine(output, 512)
+	if errors.Is(parent.Err(), context.Canceled) {
+		return "Version check was canceled before completion."
+	}
+	if errors.Is(parent.Err(), context.DeadlineExceeded) {
+		return "Version check was canceled after the caller deadline."
+	}
+	if errors.Is(probe.Err(), context.DeadlineExceeded) {
+		return "Version check timed out after 4s; reconnect to repair this installation."
+	}
+	if outputTruncated {
+		return "Version check output exceeded 16 KiB; reconnect to repair this installation."
+	}
+	if runErr == nil {
+		if detail == "" {
+			return "Version check returned no version text; reconnect to repair this installation."
+		}
+		return ""
+	}
+	message := "Version check could not run"
+	var exit *exec.ExitError
+	if errors.As(runErr, &exit) {
+		message = fmt.Sprintf("Version check exited with status %d", exit.ExitCode())
+	}
+	if detail != "" {
+		message += ": " + detail
+	}
+	return message + "; reconnect to repair this installation."
+}
+
 func Clean(text string) string {
 	text = ansiRE.ReplaceAllString(text, "")
 	return strings.Map(func(r rune) rune {
@@ -214,15 +295,22 @@ func scanAgents(ctx context.Context, paths Paths, definitions []AgentDefinition)
 				if err == nil {
 					cmd.Env = ToolEnv(paths)
 					configureProcess(cmd)
-					output, runErr := cmd.CombinedOutput()
-					if runErr == nil {
-						agent.Version = strings.Split(strings.TrimSpace(Clean(string(output))), "\n")[0]
-					}
-					if runErr != nil {
-						agent.ProbeError = "Version check failed; reconnect to repair this installation."
+					var output boundedAgentProbeOutput
+					cmd.Stdout, cmd.Stderr = &output, &output
+					runErr := cmd.Run()
+					captured, truncated := output.result()
+					agent.ProbeError = agentVersionProbeError(ctx, probeCtx, runErr, captured, truncated)
+					if agent.ProbeError == "" {
+						version, versionTruncated := agentProbeLine(captured, 512)
+						if versionTruncated {
+							agent.ProbeError = "Version text exceeded 512 bytes; reconnect to repair this installation."
+						} else {
+							agent.Version = version
+						}
 					}
 				} else {
-					agent.ProbeError = err.Error()
+					detail, _ := agentProbeLine(err.Error(), 512)
+					agent.ProbeError = "Version check could not start: " + detail + "; reconnect to repair this installation."
 				}
 				if definition.Adapter {
 					agent.Capabilities = []string{"planner", "native-auth"}
