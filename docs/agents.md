@@ -12,6 +12,8 @@ Add `--json` for scripts. `--agent NAME` limits discovery and version probes to 
 
 The plain scan reports paths and versions. `--check` probes required CLI controls without a model call. `--models` refreshes OpenCode's catalog and lists only tool-capable models with explicit zero input/output prices and no nonzero listed cache or other charges. Its `checked_at` is the time of this inspection. It does not test authentication, quota, latency, or successful inference. These diagnostics do not change project files, checkpoints, connections or model selection; the upstream CLI may maintain its own catalog cache.
 
+Version commands are bounded diagnostics: BuildHeadway retains at most 16 KiB, allows four seconds, and accepts at most 512 bytes of inert first-line version text. Excessive or empty output is an error. A nonzero exit reports its status and a sanitized first-line diagnostic; cancellation and timeout are reported separately. This prevents a broken local CLI from consuming unbounded memory or hiding the reason its compatibility check was blocked. Full inventory remains read-only and continues checking other installed entries independently.
+
 Every implementation dispatch and retry refreshes pricing again. A past scan never authorizes a later model call. A free-looking name, installed CLI, subscription allowance, or rotating promotion is not zero-price proof.
 
 ## OpenCode
