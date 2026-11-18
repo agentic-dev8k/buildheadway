@@ -122,6 +122,8 @@ def run(binary, root, extensions=False):
         wait_for(lambda:b'anthropics/claude-code' in transcript,'visible Claude credits')
         send('/about')
         wait_for(lambda:b'Commit contributors:' in transcript,'project contributor history')
+        send('/freebies platforms')
+        wait_for(lambda:b'openrouter' in transcript and b'commandcode' in transcript,'free platform directory')
         if extensions:
             send('/workflows')
             wait_for(lambda:b'Repair arithmetic' in transcript,'custom workflow discovery')
