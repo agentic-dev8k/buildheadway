@@ -356,6 +356,9 @@ func ResolveConnection(connection Connection, paths Paths) (string, error) {
 	if path := FindTool(connection.Backend, paths); path != "" {
 		return path, nil
 	}
+	if connection.Backend == "kilo" {
+		return "", errors.New("install the native Kilo CLI with npm install --global @kilocode/cli")
+	}
 	return "", fmt.Errorf("%s is not installed; open /connect and BuildHeadway will install it", connection.Backend)
 }
 func FeatureHelp(ctx context.Context, connection Connection, paths Paths) string {

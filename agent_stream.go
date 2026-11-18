@@ -26,10 +26,14 @@ func (e freeQuotaError) Error() string {
 	return platform + " reported a free-tier rate limit. Wait for the provider limit to reset, then use /resume."
 }
 
-type freeRouteMismatchError struct{}
+type freeRouteMismatchError struct{ agent string }
 
-func (freeRouteMismatchError) Error() string {
-	return "Cline did not confirm the selected free model. Check the native connection before resuming."
+func (e freeRouteMismatchError) Error() string {
+	agent := e.agent
+	if agent == "" {
+		agent = "Cline"
+	}
+	return agent + " did not confirm the selected free model. Check the native connection before resuming."
 }
 
 type clineReportedModel struct {
@@ -181,6 +185,26 @@ func openCodeReportedCharge(line string) bool {
 	return strings.ContainsAny(cost, "123456789")
 }
 
+func modelStreamDiagnostic(line, model string) string {
+	fields := map[string]string{}
+	for _, match := range agentLogFields.FindAllStringSubmatch(line, -1) {
+		value := match[2]
+		if strings.HasPrefix(value, `"`) {
+			var err error
+			value, err = strconv.Unquote(value)
+			if err != nil {
+				return ""
+			}
+		}
+		fields[match[1]] = value
+	}
+	provider, id, ok := strings.Cut(model, "/")
+	if ok && fields["level"] == "ERROR" && fields["message"] == "stream error" && fields["providerID"] == provider && fields["modelID"] == id {
+		return fields["error.error"]
+	}
+	return ""
+}
+
 // Read process diagnostics, keeping model and tool text out of routing decisions.
 func agentStreamError(backend, model, line string, freeOnly bool) error {
 	line = Clean(line)
@@ -214,22 +238,7 @@ func agentStreamError(backend, model, line string, freeOnly bool) error {
 			}
 		}
 	} else if backend == "opencode" {
-		fields := map[string]string{}
-		for _, match := range agentLogFields.FindAllStringSubmatch(line, -1) {
-			value := match[2]
-			if strings.HasPrefix(value, `"`) {
-				var err error
-				value, err = strconv.Unquote(value)
-				if err != nil {
-					return nil
-				}
-			}
-			fields[match[1]] = value
-		}
-		provider, id, ok := strings.Cut(model, "/")
-		if ok && fields["level"] == "ERROR" && fields["message"] == "stream error" && fields["providerID"] == provider && fields["modelID"] == id {
-			message = fields["error.error"]
-		}
+		message = modelStreamDiagnostic(line, model)
 	}
 	if freeOnly && backend == "opencode" && strings.Contains(strings.ToLower(message), "free usage limit reached") {
 		return freeQuotaError{}

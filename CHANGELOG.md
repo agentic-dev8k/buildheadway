@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.58.0 — 2026-11-18
+
+- Add opt-in anonymous Kilo Gateway routing through the native Kilo CLI. Refresh eligible zero-price, tool-capable models and verify the selected model and cost from the native session.
+- Count a Kilo Gateway quota limit once per run so automatic routing can continue with another enabled platform.
+
 ## 0.57.0 — 2026-11-18
 
 - Add opt-in local Ollama routing through the native Command Code CLI for full-access goals. After a hosted provider reaches its free limit, automatic routing can continue with an eligible installed model.

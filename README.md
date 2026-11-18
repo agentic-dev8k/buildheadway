@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.57.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.58.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -35,7 +35,7 @@ On first launch, select an installed senior agent and complete its own sign-in. 
 
 Press Ctrl+P for searchable commands. Read history while agents continue; Ctrl+End returns to live output. See the [terminal interface guide](docs/terminal.md).
 
-Use `buildheadway freebies platforms --check` to inspect OpenCode, Cline, OpenRouter, Command Code, Ollama and Codex options. Full-access goals can switch between enabled verified-free providers, including Ollama through Command Code. See [free platform setup](docs/free-platforms.md).
+Use `buildheadway freebies platforms --check` to inspect OpenCode, Cline, OpenRouter, Kilo Gateway, Command Code, Ollama and Codex options. Full-access goals can switch between enabled verified-free providers. See [free platform setup](docs/free-platforms.md).
 
 Use `buildheadway inputs` to inspect the actual saved instructions sent to agents; see [prompt inspection](docs/inputs.md).
 

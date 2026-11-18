@@ -32,15 +32,26 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 	}
 	result := helpCacheEntry{}
 	env := ToolEnv(paths)
+	probeDir := ""
 	if connection.Backend == "commandcode" {
 		env = localCommandCodeEnv(env)
+	} else if connection.Backend == "kilo" {
+		probeDir, err = os.MkdirTemp("", "buildheadway-kilo-help-")
+		if err != nil {
+			return result, err
+		}
+		defer os.RemoveAll(probeDir)
+		env = kiloFreeEnv(env, probeDir)
 	}
 	for index, args := range [][]string{{"--help"}, {"exec", "--help"}} {
-		if index == 1 && connection.Backend != "codex" && connection.Backend != "opencode" {
+		if index == 1 && connection.Backend != "codex" && connection.Backend != "opencode" && connection.Backend != "kilo" {
 			break
 		}
-		if index == 1 && connection.Backend == "opencode" {
+		if index == 1 && (connection.Backend == "opencode" || connection.Backend == "kilo") {
 			args = []string{"run", "--help"}
+		}
+		if connection.Backend == "kilo" {
+			args = append([]string{"--pure"}, args...)
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		cmd, err := PreparedCommand(probeCtx, append([]string{executable}, args...), env)
@@ -48,7 +59,7 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 			cancel()
 			return result, err
 		}
-		cmd.Env = env
+		cmd.Env, cmd.Dir = env, probeDir
 		data, runErr := cmd.CombinedOutput()
 		cancel()
 		if runErr != nil {
@@ -122,9 +133,16 @@ func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
 			models = append(models, found...)
 			continue
 		}
-		if err := checkCline(); err != nil {
-			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · compatible Cline unavailable"})
-			continue
+		if platform == "kilo" {
+			if err := compatibleFreeKilo(ctx, r.Paths); err != nil {
+				r.Emit(Event{Kind: "status", Text: "Skipping kilo · " + freebieTerminalLine(err.Error(), 500)})
+				continue
+			}
+		} else {
+			if err := checkCline(); err != nil {
+				r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · compatible Cline unavailable"})
+				continue
+			}
 		}
 		if err := freePlatformPrerequisite(platform, r.Paths); err != nil {
 			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · " + err.Error()})
@@ -189,6 +207,15 @@ func opencodeEnv(paths Paths, model string, planner bool, executedChecks ...stri
 	return opencodeAccessEnv(paths, model, planner, false, executedChecks...)
 }
 func opencodeAccessEnv(paths Paths, model string, planner, full bool, executedChecks ...string) []string {
+	config := openCodeRunConfig(model, planner, full, executedChecks...)
+	data, _ := json.Marshal(config)
+	env := setEnv(ToolEnv(paths), "OPENCODE_CONFIG_CONTENT", string(data))
+	permissions, _ := json.Marshal(config["permission"])
+	env = setEnv(env, "OPENCODE_PERMISSION", string(permissions))
+	return setEnv(env, "OPENCODE_DISABLE_DEFAULT_PLUGINS", "true")
+}
+
+func openCodeRunConfig(model string, planner, full bool, executedChecks ...string) map[string]any {
 	permission := map[string]any{"*": "allow", "question": "deny", "task": "deny", "external_directory": "deny"}
 	agent := "build"
 	if planner {
@@ -221,15 +248,10 @@ func opencodeAccessEnv(paths Paths, model string, planner, full bool, executedCh
 		agentConfig["description"] = "BuildHeadway planning and review"
 		agentConfig["prompt"] = "You plan, advise and review code for BuildHeadway. Read the actual project files with read, glob and grep. Do not write a plan file or request file edits, arbitrary shell commands, native delegation or user questions. Internal team messages in the attached JSON schema are supported: BuildHeadway routes them to your teammates and returns their answers. Use executed verification evidence; during review you may repeat exact executed checks. Separate workers perform implementation. Follow the attached JSON schema and return that JSON object as your final answer."
 	}
-	config := map[string]any{
+	return map[string]any{
 		"model": model, "small_model": model, "enabled_providers": []string{provider},
 		"permission": permission, "agent": map[string]any{agent: agentConfig},
 	}
-	data, _ := json.Marshal(config)
-	env := setEnv(ToolEnv(paths), "OPENCODE_CONFIG_CONTENT", string(data))
-	permissions, _ := json.Marshal(permission)
-	env = setEnv(env, "OPENCODE_PERMISSION", string(permissions))
-	return setEnv(env, "OPENCODE_DISABLE_DEFAULT_PLUGINS", "true")
 }
 
 func openCodeRunArgs(executable, model, promptPath, repo string, planner, supportsAuto bool) []string {
@@ -289,6 +311,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	resultPath := strings.TrimSuffix(logPath, ".log") + ".result.json"
 	args := []string{executable}
 	env := ToolEnv(r.Paths)
+	processDir, processInput := r.Repo, prompt
 	switch connection.Backend {
 	case "codex":
 		sandbox := "workspace-write"
@@ -390,7 +413,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 					return "", errors.New("choose an eligible Cline promotion")
 				}
 			case "openrouter":
-				if !providerModelID.MatchString(model) || !strings.HasSuffix(model, ":free") {
+				if !freeGatewayModelID("openrouter", model) {
 					return "", errors.New("choose an eligible OpenRouter free variant")
 				}
 			default:
@@ -412,6 +435,30 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			env = clineFreeEnv(env, connection.Provider)
 			env = setEnv(env, "CLINE_NO_INTERACTIVE", "1")
 			args = append(args, "--config", profile, "--compaction", "off")
+		}
+	case "kilo":
+		id, explicit := strings.CutPrefix(model, "kilo/")
+		if !fullAccess || !connection.RequireFree || connection.Provider != "kilo" || !explicit || !freeGatewayModelID("kilo", id) {
+			return "", errors.New("Kilo requires a verified free Gateway model in full-access goal mode")
+		}
+		if err := compatibleFreeKilo(ctx, r.Paths); err != nil {
+			return "", err
+		}
+		offer, err := readKiloFreeOffer(ctx, freeCatalogClient, id)
+		if err != nil {
+			return "", err
+		}
+		profile, err := os.MkdirTemp("", "buildheadway-kilo-")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(profile)
+		processDir, processInput = profile, ""
+		env = kiloFreeRunEnv(env, profile, offer, planner)
+		args = openCodeRunArgs(executable, model, promptPath, r.Repo, planner, true)
+		args = append([]string{executable, "--print-logs", "--log-level", "ERROR"}, args[1:]...)
+		if planner {
+			args = append(args, "--auto")
 		}
 	case "commandcode":
 		if !fullAccess || !connection.RequireFree || connection.Provider != commandCodeOllamaProvider || !localOllamaModelID(model) {
@@ -479,9 +526,11 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			if json.Unmarshal([]byte(line), &event) == nil {
 				err = checkCommandCodeEvent(event, model)
 			}
-		case "opencode", "cline":
+		case "opencode", "cline", "kilo":
 			if connection.Backend == "cline" && connection.RequireFree {
 				err = clineFreeStreamError(connection.Provider, model, line)
+			} else if connection.Backend == "kilo" {
+				err = kiloFreeStreamError(model, line)
 			}
 			if err == nil {
 				err = agentStreamError(connection.Backend, model, line, zeroCost)
@@ -512,7 +561,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			stream(line)
 		}
 	}
-	result, err := RunProcess(processCtx, args, r.Repo, logPath, prompt, env, timeout, observe)
+	result, err := RunProcess(processCtx, args, processDir, logPath, processInput, env, timeout, observe)
 	blockerMu.Lock()
 	blocker, unavailable := providerBlocker, unavailableOffer
 	blockerMu.Unlock()
@@ -542,6 +591,12 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	if result.Code != 0 {
 		return "", fmt.Errorf("%s exited %d: %s", connection.Backend, result.Code, Tail(result.Output, 2200))
+	}
+	if connection.Backend == "kilo" {
+		if err := verifyKiloRun(ctx, executable, processDir, env, model, result.Output); err != nil {
+			return "", err
+		}
+		return result.Output, nil
 	}
 	raw := result.Output
 	if file, err := os.Open(resultPath); err == nil {

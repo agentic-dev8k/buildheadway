@@ -36,6 +36,15 @@ func TestFreePlatformCatalogsAdmitOnlyRecognizedOffers(t *testing.T) {
 			{"id":"vendor/mixed","pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]},
 			{"id":"vendor/invalid:free","pricing":{"prompt":0,"completion":0,"web_search":null},"supported_parameters":["tools"]}
 		]}`, []string{"openrouter/vendor/good:free"}},
+		{"kilo", kiloFreeCatalog, `{"data":[
+			{"id":"kilo-auto/free","context_length":256000,"pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]},
+			{"id":"vendor/fresh:free","context_length":8192,"pricing":{"prompt":0,"completion":0,"discount":0},"supported_parameters":["tools"]},
+			{"id":"vendor/paid:free","context_length":8192,"pricing":{"prompt":0,"completion":0,"request":"1e-500"},"supported_parameters":["tools"]},
+			{"id":"vendor/text:free","context_length":8192,"pricing":{"prompt":0,"completion":0},"supported_parameters":["temperature"]},
+			{"id":"vendor/unpriced:free","context_length":8192,"pricing":{"prompt":0},"supported_parameters":["tools"]},
+			{"id":"vendor/unknown:free","context_length":"unknown","pricing":{"prompt":0,"completion":0},"supported_parameters":["tools"]},
+			{"id":"vendor/undesignated","context_length":8192,"pricing":{"prompt":0,"completion":0},"supported_parameters":["tools"]}
+		]}`, []string{"kilo/kilo-auto/free", "kilo/vendor/fresh:free"}},
 		{"commandcode", commandCodeCatalog, `{"data":[
 			{"id":"vendor/offer:free","owned_by":"command-code","supported_endpoints":["/chat/completions"]},
 			{"id":"vendor/paid","owned_by":"command-code","supported_endpoints":["/chat/completions"]},
@@ -67,11 +76,11 @@ func TestFreeWorkerSwitchesIndependentPlatformsOnQuota(t *testing.T) {
 	if err := r.EnableFigureOut("full"); err != nil {
 		t.Fatal(err)
 	}
-	r.freePlatforms = []string{"cline", "openrouter", "ollama"}
+	r.freePlatforms = []string{"cline", "openrouter", "kilo", "ollama"}
 	calls, refreshes := []string{}, 0
 	r.Discover = func(context.Context) ([]string, error) {
 		refreshes++
-		return []string{"opencode/first", "opencode/another", "cline/cline-free/trial", "openrouter/vendor/backup:free", "ollama/fixture:8b"}, nil
+		return []string{"opencode/first", "opencode/another", "cline/cline-free/trial", "openrouter/vendor/backup:free", "kilo/vendor/fast:free", "kilo/kilo-auto/free", "ollama/fixture:8b"}, nil
 	}
 	r.Invoke = func(_ context.Context, c Connection, _, _ string, planner bool, model string) (string, error) {
 		calls = append(calls, c.Provider+"|"+model)
@@ -89,6 +98,11 @@ func TestFreeWorkerSwitchesIndependentPlatformsOnQuota(t *testing.T) {
 			}
 			return "", freeQuotaError{platform: "openrouter"}
 		case 4:
+			if c.Backend != "kilo" || c.Provider != "kilo" || !c.RequireFree || c.Model != "kilo/vendor/fast:free" {
+				t.Fatalf("Kilo route lost its connection: %#v", c)
+			}
+			return "", freeQuotaError{platform: "kilo"}
+		case 5:
 			if c.Backend != "commandcode" || c.Provider != commandCodeOllamaProvider || !c.RequireFree {
 				t.Fatalf("Ollama route lost its local Command Code connection: %#v", c)
 			}
@@ -98,11 +112,11 @@ func TestFreeWorkerSwitchesIndependentPlatformsOnQuota(t *testing.T) {
 		return "", nil
 	}
 	result, err := r.workOnce(context.Background(), Task{"one", "Work", "Implement"}, "")
-	want := []string{"|opencode/first", "cline|cline-free/trial", "openrouter|vendor/backup:free", "buildheadway-ollama|fixture:8b"}
-	if err != nil || !result.OK || result.Model != "ollama/fixture:8b" || !reflect.DeepEqual(calls, want) || refreshes != 4 {
+	want := []string{"|opencode/first", "cline|cline-free/trial", "openrouter|vendor/backup:free", "kilo|kilo/vendor/fast:free", "buildheadway-ollama|fixture:8b"}
+	if err != nil || !result.OK || result.Model != "ollama/fixture:8b" || !reflect.DeepEqual(calls, want) || refreshes != 5 {
 		t.Fatalf("incorrect failover: %+v %v calls=%v refreshes=%d", result, err, calls, refreshes)
 	}
-	if r.State.modelHealth("worker", "opencode/another") != nil || r.State.WorkerCalls != 4 {
+	if r.State.modelHealth("worker", "opencode/another") != nil || r.State.modelHealth("worker", "kilo/kilo-auto/free") != nil || r.State.WorkerCalls != 5 {
 		t.Fatal("rotation reused a limited platform or lost a counted call")
 	}
 }

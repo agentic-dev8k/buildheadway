@@ -20,6 +20,7 @@ const (
 	clineFreeCatalog   = "https://api.cline.bot/api/v1/ai/cline/recommended-models"
 	openRouterCatalog  = "https://openrouter.ai/api/v1/models?supported_parameters=tools"
 	commandCodeCatalog = "https://api.commandcode.ai/provider/v1/models"
+	kiloFreeCatalog    = kiloGatewayURL + "/models"
 )
 
 var freeCatalogClient = &http.Client{
@@ -54,10 +55,10 @@ func selectedFreePlatforms(value string) ([]string, error) {
 	for _, part := range strings.Split(value, ",") {
 		name := strings.ToLower(strings.TrimSpace(part))
 		switch name {
-		case "cline", "openrouter", "ollama":
+		case "cline", "openrouter", "ollama", "kilo":
 			names = append(names, name)
 		default:
-			return nil, fmt.Errorf("%s accepts cline, openrouter and ollama", freePlatformsEnv)
+			return nil, fmt.Errorf("%s accepts cline, openrouter, ollama and kilo", freePlatformsEnv)
 		}
 	}
 	return Unique(names), nil
@@ -97,7 +98,34 @@ func clinePromotionID(id string) bool {
 		strings.HasSuffix(id, ":free") || strings.HasSuffix(id, "-free"))
 }
 
-func readAdditionalFreeCatalog(ctx context.Context, client *http.Client, platform string) ([]string, error) {
+func freeGatewayModelID(platform, id string) bool {
+	return providerModelID.MatchString(id) && (strings.HasSuffix(id, ":free") ||
+		(platform == "kilo" && id == "kilo-auto/free"))
+}
+
+type hostedFreeOffer struct {
+	ID         string                     `json:"id"`
+	Pricing    map[string]json.RawMessage `json:"pricing"`
+	Parameters []string                   `json:"supported_parameters"`
+	Endpoints  []string                   `json:"supported_endpoints"`
+	Owner      string                     `json:"owned_by"`
+	Context    json.RawMessage            `json:"context_length"`
+	Top        json.RawMessage            `json:"top_provider"`
+}
+
+type additionalFreeFeed struct {
+	Free []struct {
+		ID            string `json:"id"`
+		SupportsTools *bool  `json:"supportsTools"`
+	} `json:"free"`
+	Models []hostedFreeOffer `json:"data"`
+}
+
+func (model hostedFreeOffer) gatewayFree(platform string) bool {
+	return freeGatewayModelID(platform, model.ID) && contains(model.Parameters, "tools") && hasZeroCatalogPricing(model.Pricing)
+}
+
+func fetchAdditionalFreeFeed(ctx context.Context, client *http.Client, platform string) (*additionalFreeFeed, error) {
 	var endpoint string
 	switch platform {
 	case "cline":
@@ -106,6 +134,8 @@ func readAdditionalFreeCatalog(ctx context.Context, client *http.Client, platfor
 		endpoint = openRouterCatalog
 	case "commandcode":
 		endpoint = commandCodeCatalog
+	case "kilo":
+		endpoint = kiloFreeCatalog
 	default:
 		return nil, errors.New("unknown free platform")
 	}
@@ -128,21 +158,17 @@ func readAdditionalFreeCatalog(ctx context.Context, client *http.Client, platfor
 	if err != nil {
 		return nil, fmt.Errorf("reading %s catalog: %w", platform, err)
 	}
-	var feed struct {
-		Free []struct {
-			ID            string `json:"id"`
-			SupportsTools *bool  `json:"supportsTools"`
-		} `json:"free"`
-		Models []struct {
-			ID         string                     `json:"id"`
-			Pricing    map[string]json.RawMessage `json:"pricing"`
-			Parameters []string                   `json:"supported_parameters"`
-			Endpoints  []string                   `json:"supported_endpoints"`
-			Owner      string                     `json:"owned_by"`
-		} `json:"data"`
-	}
+	var feed additionalFreeFeed
 	if err := json.Unmarshal(data, &feed); err != nil {
 		return nil, fmt.Errorf("invalid %s catalog: %w", platform, err)
+	}
+	return &feed, nil
+}
+
+func readAdditionalFreeCatalog(ctx context.Context, client *http.Client, platform string) ([]string, error) {
+	feed, err := fetchAdditionalFreeFeed(ctx, client, platform)
+	if err != nil {
+		return nil, err
 	}
 	var models []string
 	if platform == "cline" {
@@ -154,14 +180,17 @@ func readAdditionalFreeCatalog(ctx context.Context, client *http.Client, platfor
 				models = append(models, "cline/"+row.ID)
 			}
 		}
-	} else if platform == "openrouter" {
+	} else if platform == "openrouter" || platform == "kilo" {
 		if feed.Models == nil {
-			return nil, errors.New("OpenRouter catalog did not include a model list")
+			return nil, fmt.Errorf("%s catalog did not include a model list", platform)
 		}
 		for _, row := range feed.Models {
-			if providerModelID.MatchString(row.ID) && strings.HasSuffix(row.ID, ":free") &&
-				contains(row.Parameters, "tools") && hasZeroCatalogPricing(row.Pricing) {
-				models = append(models, "openrouter/"+row.ID)
+			eligible := row.gatewayFree(platform)
+			if platform == "kilo" {
+				_, eligible = row.kiloModel()
+			}
+			if eligible {
+				models = append(models, platform+"/"+row.ID)
 			}
 		}
 	} else {
@@ -185,7 +214,7 @@ func freePlatformForModel(model string) string {
 
 func optionalFreeRoute(model string) bool {
 	platform := freePlatformForModel(model)
-	return platform == "cline" || platform == "openrouter" || platform == "ollama"
+	return platform == "cline" || platform == "openrouter" || platform == "ollama" || platform == "kilo"
 }
 
 func clineFreeProfile(paths Paths, platform string) string {
@@ -271,6 +300,8 @@ func freeModelConnection(requested Connection, model string) Connection {
 		return Connection{Backend: "cline", Provider: platform, Model: id, RequireFree: true}
 	case "ollama":
 		return Connection{Backend: "commandcode", Provider: commandCodeOllamaProvider, Model: id, RequireFree: true}
+	case "kilo":
+		return Connection{Backend: "kilo", Provider: "kilo", Model: model, RequireFree: true}
 	default:
 		requested.Model, requested.RequireFree = model, true
 		return requested
@@ -296,6 +327,7 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 		{Platform: "openrouter", Status: "optional", Enabled: contains(enabled, "openrouter"), Detail: "Verified tool-capable :free models via Cline and OPENROUTER_API_KEY."},
 		{Platform: "commandcode", Status: "discovery", Detail: "Published Command Code hosted variants. Local execution is available through the Ollama route."},
 		{Platform: "ollama", Status: "optional", Enabled: contains(enabled, "ollama"), Detail: "Installed tool-capable Ollama models via Command Code in local-only mode. Configure with buildheadway freebies platforms setup ollama."},
+		{Platform: "kilo", Status: "optional", Enabled: contains(enabled, "kilo"), Detail: "Keyless Kilo Gateway free models through the native Kilo CLI. Install it with npm install --global @kilocode/cli."},
 		{Platform: "codex", Status: "account_allowance", Detail: "Use ChatGPT sign-in with the Codex senior connection. Usage is assigned by the account plan."},
 	}
 	if !check {
@@ -303,7 +335,7 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 	}
 	for i := range rows {
 		switch rows[i].Platform {
-		case "cline", "openrouter", "commandcode":
+		case "cline", "openrouter", "commandcode", "kilo":
 			models, err := readAdditionalFreeCatalog(ctx, freeCatalogClient, rows[i].Platform)
 			rows[i].Models = models
 			if err != nil {
@@ -313,6 +345,13 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 				rows[i].Status = "catalog_checked"
 				if rows[i].Platform == "commandcode" {
 					rows[i].Status = "offers_listed"
+				} else if rows[i].Platform == "kilo" {
+					if err := compatibleFreeKilo(ctx, paths); err != nil {
+						rows[i].Status = "cli_setup_needed"
+						rows[i].Detail = freebieTerminalLine(err.Error(), 500)
+					} else {
+						rows[i].Detail += " Native CLI detected. Kilo Gateway applies its free request limit."
+					}
 				} else {
 					rows[i].Detail += " Catalog check only. Account access and quota are checked by the native agent."
 				}
