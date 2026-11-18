@@ -13,7 +13,7 @@ Install it from your terminal, run `buildheadway` in your project, and describe 
 With **Node.js 20+ and npm** installed, open a terminal in the folder containing the downloaded `.tgz` package:
 
 ~~~sh
-npm install --global --ignore-scripts ./buildheadway-0.55.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.56.0.tgz
 ~~~
 
 This same command works on Windows, macOS, and Linux. The package provides the `buildheadway` terminal command and includes native x64 and ARM64 builds. It needs no compiler or Python, downloads no extra binaries during installation, and also installs with npm lifecycle scripts disabled.
@@ -45,7 +45,9 @@ Long command logs stay on disk while memory capture is limited to 8 MiB. Oversiz
 
 BuildHeadway remembers free-model failures across tasks and restarts. Temporarily overloaded models start with a 15-second cooldown that can grow to five minutes. If OpenCode confirms that a free promotion ended or that the selected model is unavailable, BuildHeadway holds that model out of both roles for 15 minutes. Automatic selection tries another eligible model after checking the current catalog. Use `/routing` to see the recorded reason and `/models` to choose automatic selection for the worker.
 
-An explicit choice stays pinned. A verified pool with no available offers pauses for manual resume. An OpenCode rate-limit response without confirmed model scope pauses for the provider limit to reset. Cancellation, steering and runtime budgets remain active during overload waits. Authentication, payment, provider-policy and reported-cost failures stop the run. If a worker changed files before failing, the harness inspects that work through its verification flow.
+An explicit choice stays pinned. A verified pool with no available offers pauses for manual resume. An OpenCode rate-limit response without confirmed model scope pauses an OpenCode-only goal for the provider limit to reset. Cancellation, steering and runtime budgets remain active during overload waits. Authentication, payment, provider-policy and reported-cost failures stop the run. If a worker changed files before failing, the harness inspects that work through its verification flow.
+
+Full-access auto routing can try another enabled provider when a provider reports a shared or unclear limit. The limited platform stays out for the current execution and can be checked again on manual resume. See [free platform setup and checks](free-platforms.md).
 
 `buildheadway routing`, `buildheadway routing --json` and `/routing` show per-model attempts, usable responses, failures, cooldowns and recent routing decisions. A usable response is transport/protocol success; project checks and senior review still determine whether the work is correct. Routing history also appears in exported reports.
 
@@ -159,7 +161,7 @@ Workspace mode uses the existing adapter permission controls; these are not a un
 Build a task tracker with search, dark mode, and tests
 ~~~
 
-The senior team reads the project, discusses uncertain decisions, assigns tasks to free OpenCode workers, answers their questions, runs project checks, reviews the result, and assigns repairs automatically. `buildheadway run "GOAL"` retains the explicit single-planner workflow for existing scripts; `/plan` and `buildheadway plan` remain planning-only.
+The senior team reads the project, discusses uncertain decisions, assigns tasks to verified-free workers, answers their questions, runs project checks, reviews the result, and assigns repairs automatically. Use [free platform setup](free-platforms.md) to enable optional providers for full-access goals. `buildheadway run "GOAL"` retains the explicit single-planner workflow for existing scripts. `/plan` and `buildheadway plan` remain planning-only.
 
 | Control | Action |
 | --- | --- |
