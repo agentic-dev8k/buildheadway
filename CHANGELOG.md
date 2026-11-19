@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.59.0 — 2026-11-19
+
+- Add opt-in LM Studio and llama.cpp routing through Pi. Discover loaded models with tool support, pin inference to loopback, and verify the selected model in Pi's native output.
+- Include both local providers in platform readiness checks and automatic failover.
+
 ## 0.58.0 — 2026-11-18
 
 - Add opt-in anonymous Kilo Gateway routing through the native Kilo CLI. Refresh eligible zero-price, tool-capable models and verify the selected model and cost from the native session.

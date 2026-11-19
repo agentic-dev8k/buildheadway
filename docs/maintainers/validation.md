@@ -1,3 +1,9 @@
+# BuildHeadway 0.59.0 local Pi routes — 2026-11-19
+
+- Continued from `kilo-gateway-platform-0.58` at `7d89d05b096a52008e62fca19153c17a2b8f61c9`. Added loaded LM Studio and single-model llama.cpp discovery and native Pi execution.
+- Exercised the actual BuildHeadway adapters and Pi 1.5.2 against separate loopback fixtures. Both sessions performed real scratch-file writes and returned matching zero-cost model receipts. The model replies and API metadata were simulated.
+- Regression coverage includes unloaded and tool-incompatible models, an ambiguous llama.cpp model list, local request pinning, stripped credential headers, redirect refusal, Pi's cost metadata, and failover through two local platforms.
+
 # BuildHeadway 0.58.0 anonymous Kilo Gateway route — 2026-11-18
 
 - Continued from `command-code-local-platform-0.57` at `98d90fca245ca16d9ca008b959a3a61704438b42`. Added a native Kilo route for verified zero-price models with tool support.

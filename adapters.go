@@ -27,6 +27,10 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 		return helpCacheEntry{}, err
 	}
 	key := connection.Backend + "\x00" + executable + info.ModTime().String() + itoa(int(info.Size()))
+	localPi := connection.Backend == "pi" && connection.Provider == localPiProvider
+	if localPi {
+		key += "\x00local"
+	}
 	if cached, ok := helpCache.Load(key); ok {
 		return cached.(helpCacheEntry), nil
 	}
@@ -35,6 +39,13 @@ func AgentHelp(ctx context.Context, connection Connection, paths Paths) (helpCac
 	probeDir := ""
 	if connection.Backend == "commandcode" {
 		env = localCommandCodeEnv(env)
+	} else if localPi {
+		probeDir, err = os.MkdirTemp("", "buildheadway-pi-help-")
+		if err != nil {
+			return result, err
+		}
+		defer os.RemoveAll(probeDir)
+		env = localPiEnv(env, probeDir)
 	} else if connection.Backend == "kilo" {
 		probeDir, err = os.MkdirTemp("", "buildheadway-kilo-help-")
 		if err != nil {
@@ -129,6 +140,14 @@ func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
 			found, err := configuredLocalOllamaOffers(ctx, r.Paths, r.Repo)
 			if err != nil {
 				r.Emit(Event{Kind: "status", Text: "Skipping ollama · " + freebieTerminalLine(err.Error(), 500)})
+			}
+			models = append(models, found...)
+			continue
+		}
+		if localPiOrigin(platform) != "" {
+			found, err := configuredLocalPiOffers(ctx, r.Paths, platform)
+			if err != nil {
+				r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · " + freebieTerminalLine(err.Error(), 500)})
 			}
 			models = append(models, found...)
 			continue
@@ -312,6 +331,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	args := []string{executable}
 	env := ToolEnv(r.Paths)
 	processDir, processInput := r.Repo, prompt
+	piModelID := ""
 	switch connection.Backend {
 	case "codex":
 		sandbox := "workspace-write"
@@ -376,6 +396,45 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 		env = opencodeAccessEnv(r.Paths, model, planner, fullAccess, checks...)
 	case "pi":
 		args = append(args, "--print", "--mode", "json", "--no-session", "--no-extensions", "--no-skills")
+		if connection.Provider == localPiProvider {
+			platform, id, qualified := strings.Cut(model, "/")
+			if !fullAccess || !connection.RequireFree || !qualified || localPiOrigin(platform) == "" || !localPiModelID.MatchString(id) {
+				return "", errors.New("Pi requires a verified local model in full-access goal mode")
+			}
+			if err := compatibleLocalPi(ctx, r.Paths); err != nil {
+				return "", err
+			}
+			models, err := readLocalPiModels(ctx, localPiClient, platform)
+			if err != nil {
+				return "", errors.Join(freeOfferUnavailableError{model}, err)
+			}
+			var selected localPiModel
+			for _, candidate := range models {
+				if candidate.id == id {
+					selected = candidate
+					break
+				}
+			}
+			if selected.id == "" {
+				return "", freeOfferUnavailableError{model}
+			}
+			profile, err := os.MkdirTemp("", "buildheadway-pi-local-")
+			if err != nil {
+				return "", err
+			}
+			defer os.RemoveAll(profile)
+			relay, err := startLocalPiRelay(localPiOrigin(platform), id)
+			if err != nil {
+				return "", err
+			}
+			defer relay.server.Close()
+			if err := writeLocalPiProfile(profile, selected, relay); err != nil {
+				return "", err
+			}
+			env = localPiEnv(env, profile)
+			piModelID = id
+			args = append(args, "--no-context-files", "--no-prompt-templates", "--models", localPiProvider+"/"+id)
+		}
 		if planner && !fullAccess {
 			args = append(args, "--tools", "read,grep,find,ls")
 		}
@@ -386,8 +445,12 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 		if strings.Contains(help.Global, "--no-approve") {
 			args = append(args, "--no-approve")
 		}
-		if model != "" {
-			args = append(args, "--model", model)
+		cliModel := model
+		if piModelID != "" {
+			cliModel = piModelID
+		}
+		if cliModel != "" {
+			args = append(args, "--model", cliModel)
 			if connection.Provider != "" {
 				args = append(args, "--provider", connection.Provider)
 			}
@@ -526,6 +589,10 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 			if json.Unmarshal([]byte(line), &event) == nil {
 				err = checkCommandCodeEvent(event, model)
 			}
+		case "pi":
+			if piModelID != "" {
+				_, err = localPiReceipt(line, piModelID)
+			}
 		case "opencode", "cline", "kilo":
 			if connection.Backend == "cline" && connection.RequireFree {
 				err = clineFreeStreamError(connection.Provider, model, line)
@@ -591,6 +658,12 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	}
 	if result.Code != 0 {
 		return "", fmt.Errorf("%s exited %d: %s", connection.Backend, result.Code, Tail(result.Output, 2200))
+	}
+	if piModelID != "" {
+		if err := verifyLocalPiOutput(result.Output, piModelID); err != nil {
+			return "", err
+		}
+		return result.Output, nil
 	}
 	if connection.Backend == "kilo" {
 		if err := verifyKiloRun(ctx, executable, processDir, env, model, result.Output); err != nil {

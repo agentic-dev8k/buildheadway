@@ -55,10 +55,10 @@ func selectedFreePlatforms(value string) ([]string, error) {
 	for _, part := range strings.Split(value, ",") {
 		name := strings.ToLower(strings.TrimSpace(part))
 		switch name {
-		case "cline", "openrouter", "ollama", "kilo":
+		case "cline", "openrouter", "ollama", "kilo", "lmstudio", "llamacpp":
 			names = append(names, name)
 		default:
-			return nil, fmt.Errorf("%s accepts cline, openrouter, ollama and kilo", freePlatformsEnv)
+			return nil, fmt.Errorf("%s accepts cline, openrouter, ollama, kilo, lmstudio and llamacpp", freePlatformsEnv)
 		}
 	}
 	return Unique(names), nil
@@ -214,7 +214,7 @@ func freePlatformForModel(model string) string {
 
 func optionalFreeRoute(model string) bool {
 	platform := freePlatformForModel(model)
-	return platform == "cline" || platform == "openrouter" || platform == "ollama" || platform == "kilo"
+	return platform == "cline" || platform == "openrouter" || platform == "ollama" || platform == "kilo" || localPiOrigin(platform) != ""
 }
 
 func clineFreeProfile(paths Paths, platform string) string {
@@ -302,6 +302,8 @@ func freeModelConnection(requested Connection, model string) Connection {
 		return Connection{Backend: "commandcode", Provider: commandCodeOllamaProvider, Model: id, RequireFree: true}
 	case "kilo":
 		return Connection{Backend: "kilo", Provider: "kilo", Model: model, RequireFree: true}
+	case "lmstudio", "llamacpp":
+		return Connection{Backend: "pi", Provider: localPiProvider, Model: model, RequireFree: true}
 	default:
 		requested.Model, requested.RequireFree = model, true
 		return requested
@@ -328,6 +330,8 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 		{Platform: "commandcode", Status: "discovery", Detail: "Published Command Code hosted variants. Local execution is available through the Ollama route."},
 		{Platform: "ollama", Status: "optional", Enabled: contains(enabled, "ollama"), Detail: "Installed tool-capable Ollama models via Command Code in local-only mode. Configure with buildheadway freebies platforms setup ollama."},
 		{Platform: "kilo", Status: "optional", Enabled: contains(enabled, "kilo"), Detail: "Keyless Kilo Gateway free models through the native Kilo CLI. Install it with npm install --global @kilocode/cli."},
+		{Platform: "lmstudio", Status: "optional", Enabled: contains(enabled, "lmstudio"), Detail: "Loaded tool-capable LM Studio models on 127.0.0.1:1234, through Pi."},
+		{Platform: "llamacpp", Status: "optional", Enabled: contains(enabled, "llamacpp"), Detail: "A loaded tool-capable llama.cpp model on 127.0.0.1:8080, through Pi."},
 		{Platform: "codex", Status: "account_allowance", Detail: "Use ChatGPT sign-in with the Codex senior connection. Usage is assigned by the account plan."},
 	}
 	if !check {
@@ -360,6 +364,14 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 			rows[i].Detail = codexPlanStatus(ctx, paths)
 		case "ollama":
 			models, err := configuredLocalOllamaOffers(ctx, paths, "")
+			rows[i].Models = models
+			rows[i].Status = "local_models_configured"
+			if err != nil {
+				rows[i].Status = "local_setup_needed"
+				rows[i].Detail = freebieTerminalLine(err.Error(), 500)
+			}
+		case "lmstudio", "llamacpp":
+			models, err := configuredLocalPiOffers(ctx, paths, rows[i].Platform)
 			rows[i].Models = models
 			rows[i].Status = "local_models_configured"
 			if err != nil {
@@ -448,7 +460,7 @@ func runFreePlatformsCommand(paths Paths, args []string) int {
 		return 0
 	}
 	f := flag.NewFlagSet("buildheadway freebies platforms", flag.ContinueOnError)
-	check := f.Bool("check", false, "Refresh public catalogs, local Ollama readiness and Codex sign-in")
+	check := f.Bool("check", false, "Refresh public catalogs, local server readiness and Codex sign-in")
 	asJSON := f.Bool("json", false, "Output JSON")
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
