@@ -629,7 +629,7 @@ func (r *Runner) askDecision(ctx context.Context, review bool, planner Connectio
 		if kind == "policy" {
 			return answer, err
 		}
-		if transientRE.MatchString(err.Error()) {
+		if kind == "transient" {
 			if autoFree {
 				r.Emit(Event{Kind: "status", Text: "Trying the next healthy verified free planner"})
 				continue

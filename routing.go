@@ -122,6 +122,10 @@ func modelFailureKind(err error, response bool) string {
 	if errors.As(err, &unavailable) {
 		return "unavailable"
 	}
+	var localRequest *localPiRequestError
+	if errors.As(err, &localRequest) {
+		return localRequest.failureKind()
+	}
 	var authentication authError
 	if errors.As(err, &authentication) || authRE.MatchString(err.Error()) {
 		return "auth"

@@ -167,7 +167,7 @@ func TestPiLocalRelayPinsModelAndPreventsRedirects(t *testing.T) {
 		{"other-session", `{"model":"fixture"}`, 401},
 		{relay.session, `{"model":"different"}`, 400},
 		{relay.session, `{"model":"fixture"}`, 200},
-		{relay.session, `{"model":"fixture","marker":"redirect"}`, 502},
+		{relay.session, `{"model":"fixture","marker":"redirect"}`, 400},
 	} {
 		req, err := http.NewRequest(http.MethodPost, relay.endpoint+"/chat/completions", strings.NewReader(tc.body))
 		if err != nil {
@@ -192,10 +192,64 @@ func TestPiLocalRelayPinsModelAndPreventsRedirects(t *testing.T) {
 	if forwarded.Load() != 2 {
 		t.Fatalf("unexpected number of forwarded calls: %d", forwarded.Load())
 	}
+	if failure := relay.failure.Load(); failure == nil || failure.status != http.StatusTemporaryRedirect || modelFailureKind(failure, false) != "policy" {
+		t.Fatalf("redirect did not produce a protective pause: %v", failure)
+	}
+}
+
+func TestPiLocalRelayRecordsStatusWithoutForwardingErrorBodies(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		kind   string
+	}{
+		{http.StatusNotFound, "transient"},
+		{http.StatusTooManyRequests, "transient"},
+		{http.StatusServiceUnavailable, "transient"},
+		{http.StatusUnauthorized, "policy"},
+		{http.StatusPaymentRequired, "policy"},
+		{http.StatusForbidden, "policy"},
+		{http.StatusUnprocessableEntity, "execution"},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			var requests atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Retry-After", "600")
+				http.Error(w, "Private upstream diagnostic", tc.status)
+			}))
+			defer upstream.Close()
+			relay, err := startLocalPiRelay(upstream.URL, "fixture")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer relay.server.Close()
+			for range 2 {
+				req, err := http.NewRequest(http.MethodPost, relay.endpoint+"/chat/completions", strings.NewReader(`{"model":"fixture"}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.Header.Set(localPiSessionHeader, relay.session)
+				res, err := localPiClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				data, readErr := io.ReadAll(res.Body)
+				res.Body.Close()
+				if readErr != nil || res.StatusCode != http.StatusBadRequest || res.Header.Get("Retry-After") != "" ||
+					string(data) != "Local inference request failed\n" {
+					t.Fatalf("unexpected native response: HTTP %d, %q, %v", res.StatusCode, data, readErr)
+				}
+			}
+			failure := relay.failure.Load()
+			if failure == nil || failure.status != tc.status || modelFailureKind(failure, false) != tc.kind || requests.Load() != 1 {
+				t.Fatalf("unexpected local failure or native retry: %v, calls %d", failure, requests.Load())
+			}
+		})
+	}
 }
 
 func TestPiLocalReceiptRequiresNativeModelAndZeroCost(t *testing.T) {
-	const receipt = `{"type":"message_end","message":{"role":"assistant","provider":"buildheadway-local","model":"fixture","usage":{"cost":{"input":0,"output":0,"total":0,"totalFromProvider":false}}}}`
+	const receipt = `{"type":"message_end","message":{"role":"assistant","provider":"buildheadway-local","model":"fixture","stopReason":"stop","content":[{"type":"text","text":"Done."}],"usage":{"cost":{"input":0,"output":0,"total":0,"totalFromProvider":false}}}}`
 	if err := verifyLocalPiOutput(receipt, "fixture"); err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +260,37 @@ func TestPiLocalReceiptRequiresNativeModelAndZeroCost(t *testing.T) {
 	var charge costError
 	if err := verifyLocalPiOutput(strings.Replace(receipt, `"input":0`, `"input":1e-900`, 1), "fixture"); !errors.As(err, &charge) {
 		t.Fatalf("accepted a reported charge: %v", err)
+	}
+	malformed := strings.Replace(receipt, `[{"type":"text","text":"Done."}]`, `false`, 1)
+	malformed = strings.Replace(malformed, `"total":0`, `"total":0.01`, 1)
+	if err := verifyLocalPiOutput(malformed+"\n"+receipt, "fixture"); !errors.As(err, &charge) {
+		t.Fatalf("invalid content concealed a reported charge: %v", err)
+	}
+}
+
+func TestPiLocalRequiresAnUsableFinalAssistantReply(t *testing.T) {
+	const first = `{"type":"message_end","message":{"role":"assistant","provider":"buildheadway-local","model":"fixture","stopReason":"toolUse","content":[{"type":"text","text":"I will write the file."},{"type":"toolCall","name":"write","arguments":{}}],"usage":{"cost":{"total":0}}}}`
+	for _, tc := range []struct {
+		name   string
+		last   string
+		accept bool
+	}{
+		{"tool call was the last response", "", false},
+		{"empty completion", `"stopReason":"stop","content":[]`, false},
+		{"whitespace completion", `"stopReason":"stop","content":[{"type":"text","text":"  "}]`, false},
+		{"truncated response", `"stopReason":"length","content":[{"type":"text","text":"I wrote"}]`, false},
+		{"aborted response", `"stopReason":"aborted","content":[{"type":"text","text":"I wrote"}]`, false},
+		{"complete response", `"stopReason":"stop","content":[{"type":"text","text":"I wrote and verified the file."}]`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := first
+			if tc.last != "" {
+				raw += "\n" + `{"type":"message_end","message":{"role":"assistant","provider":"buildheadway-local","model":"fixture","usage":{"cost":{"total":0}},` + tc.last + `}}`
+			}
+			if err := verifyLocalPiOutput(raw, "fixture"); (err == nil) != tc.accept {
+				t.Fatalf("unexpected completion result: %v", err)
+			}
+		})
 	}
 }
 
