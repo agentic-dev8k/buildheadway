@@ -123,7 +123,7 @@ def run(binary, root, extensions=False):
         send('/about')
         wait_for(lambda:b'Commit contributors:' in transcript,'project contributor history')
         send('/freebies platforms')
-        wait_for(lambda:all(name in transcript for name in (b'openrouter',b'commandcode',b'ollama',b'kilo',b'lmstudio',b'llamacpp')),'free platform directory')
+        wait_for(lambda:all(name in transcript for name in (b'openrouter',b'commandcode',b'ollama',b'kilo',b'lmstudio',b'llamacpp',b'ollama-pi',b'sglang')),'free platform directory')
         if extensions:
             send('/workflows')
             wait_for(lambda:b'Repair arithmetic' in transcript,'custom workflow discovery')

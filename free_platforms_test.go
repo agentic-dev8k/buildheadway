@@ -20,6 +20,39 @@ func (f freeCatalogTransport) RoundTrip(r *http.Request) (*http.Response, error)
 	return f(r)
 }
 
+func TestFreePlatformChecksRunTogetherAndKeepDirectoryOrder(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	clineStarted, routerReady := make(chan struct{}), make(chan struct{})
+	client := &http.Client{Transport: freeCatalogTransport(func(req *http.Request) (*http.Response, error) {
+		var ready <-chan struct{}
+		var payload string
+		switch req.URL.String() {
+		case clineFreeCatalog:
+			close(clineStarted)
+			ready, payload = routerReady, `{"free":[{"id":"cline-free/fixture","supportsTools":true}]}`
+		case openRouterCatalog:
+			defer close(routerReady)
+			ready, payload = clineStarted, `{"data":[{"id":"vendor/fixture:free","pricing":{"prompt":0,"completion":0},"supported_parameters":["tools"]}]}`
+		default:
+			return nil, errors.New("unexpected catalog")
+		}
+		select {
+		case <-ready:
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(payload))}, nil
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
+		}
+	})}
+	rows := []FreePlatformStatus{{Platform: "cline"}, {Platform: "openrouter"}}
+	probeFreePlatformRows(ctx, testPaths(t), rows, client)
+	for i, want := range []string{"cline/cline-free/fixture", "openrouter/vendor/fixture:free"} {
+		if rows[i].Status != "catalog_checked" || !reflect.DeepEqual(rows[i].Models, []string{want}) {
+			t.Fatalf("unexpected row at index %d: %+v", i, rows[i])
+		}
+	}
+}
+
 func TestFreePlatformCatalogsAdmitOnlyRecognizedOffers(t *testing.T) {
 	for _, tc := range []struct {
 		platform, url, payload string

@@ -38,6 +38,7 @@ type ollamaModel struct {
 	Name         string   `json:"name"`
 	Digest       string   `json:"digest"`
 	Size         int64    `json:"size"`
+	Context      int      `json:"context_length"`
 	RemoteModel  string   `json:"remote_model"`
 	RemoteHost   string   `json:"remote_host"`
 	Capabilities []string `json:"capabilities"`
@@ -89,17 +90,35 @@ func readOllamaMetadata(ctx context.Context, client *http.Client, path, model st
 func readLocalOllamaModels(ctx context.Context, client *http.Client) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	var list struct {
-		Models []ollamaModel `json:"models"`
-	}
-	if err := readOllamaMetadata(ctx, client, "/api/tags", "", &list); err != nil {
+	verified, err := readOllamaToolModels(ctx, client, false)
+	if err != nil {
 		return nil, err
 	}
 	var models []string
+	for _, item := range verified {
+		models = append(models, item.Name)
+	}
+	sort.Strings(models)
+	return Unique(models), nil
+}
+
+func readOllamaToolModels(ctx context.Context, client *http.Client, runningOnly bool) ([]ollamaModel, error) {
+	var list struct {
+		Models []ollamaModel `json:"models"`
+	}
+	path := "/api/tags"
+	if runningOnly {
+		path = "/api/ps"
+	}
+	if err := readOllamaMetadata(ctx, client, path, "", &list); err != nil {
+		return nil, err
+	}
+	var models []ollamaModel
 	var probeErr error
 	for _, item := range list.Models {
 		if !localOllamaModelID(item.Name) ||
-			item.RemoteModel != "" || item.RemoteHost != "" || item.Size <= 0 || !ollamaDigest.MatchString(item.Digest) {
+			item.RemoteModel != "" || item.RemoteHost != "" || item.Size <= 0 || !ollamaDigest.MatchString(item.Digest) ||
+			(runningOnly && item.Context <= 0) {
 			continue
 		}
 		var details ollamaModel
@@ -111,12 +130,11 @@ func readLocalOllamaModels(ctx context.Context, client *http.Client) ([]string, 
 			continue
 		}
 		if details.RemoteModel == "" && details.RemoteHost == "" && contains(details.Capabilities, "tools") {
-			models = append(models, item.Name)
+			models = append(models, item)
 		}
 	}
 	if len(models) == 0 && probeErr != nil {
 		return nil, probeErr
 	}
-	sort.Strings(models)
-	return Unique(models), nil
+	return models, nil
 }

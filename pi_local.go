@@ -55,12 +55,12 @@ func compatibleLocalPi(ctx context.Context, paths Paths) error {
 	return nil
 }
 
-func configuredLocalPiOffers(ctx context.Context, paths Paths, platform string) ([]string, error) {
+func configuredLocalPiOffers(ctx context.Context, platform string, compatible func() error) ([]string, error) {
 	models, err := readLocalPiModels(ctx, localPiClient, platform)
 	if err != nil {
 		return nil, err
 	}
-	if err := compatibleLocalPi(ctx, paths); err != nil {
+	if err := compatible(); err != nil {
 		return nil, err
 	}
 	var offers []string

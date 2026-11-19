@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -49,6 +50,22 @@ func TestPiLocalCatalogsRequireLoadedToolModels(t *testing.T) {
 				"chat_template_caps":{"supports_tools":true,"supports_tool_calls":true}}`,
 			`{"data":[{"id":"one"},{"id":"two"}]}`, nil,
 		},
+		{
+			"sglang", sgLangOrigin, "/model_info",
+			`{"model_path":"Qwen/Qwen3-8B","served_model_name":"fixture/qwen","is_generation":true,"tool_call_parser":"qwen25"}`,
+			`{"data":[{"id":"adapter","max_model_len":null},{"id":"fixture/qwen","max_model_len":16384}]}`,
+			[]localPiModel{{"fixture/qwen", 16384}},
+		},
+		{
+			"sglang", sgLangOrigin, "/model_info",
+			`{"model_path":"Qwen/Qwen3-8B","served_model_name":"fixture/qwen","is_generation":true,"tool_call_parser":null}`,
+			"", nil,
+		},
+		{
+			"sglang", sgLangOrigin, "/model_info",
+			`{"model_path":"Qwen/Qwen3-8B","served_model_name":"fixture/qwen","is_generation":true,"tool_call_parser":"qwen25"}`,
+			`{"data":[{"id":"other/model","max_model_len":16384},{"id":"fixture/qwen","max_model_len":null}]}`, nil,
+		},
 	} {
 		t.Run(tc.platform, func(t *testing.T) {
 			client := &http.Client{Transport: freeCatalogTransport(func(req *http.Request) (*http.Response, error) {
@@ -71,6 +88,53 @@ func TestPiLocalCatalogsRequireLoadedToolModels(t *testing.T) {
 				t.Fatalf("unexpected eligible models: %v %v", models, err)
 			}
 		})
+	}
+}
+
+func TestPiOllamaCatalogChecksRunningContextAndRejectsRemoteModels(t *testing.T) {
+	digest := strings.Repeat("1", 64)
+	var show []string
+	client := &http.Client{Transport: freeCatalogTransport(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Scheme+"://"+req.URL.Host != ollamaOrigin || req.Header.Get("Authorization") != "" {
+			t.Fatalf("unexpected Ollama readiness request: %s", req.URL)
+		}
+		var payload string
+		switch req.URL.Path {
+		case "/api/ps":
+			payload = strings.ReplaceAll(`{"models":[
+				{"name":"qwen:8b","digest":"DIGEST","size":10,"context_length":8192},
+				{"name":"qwen-cloud:latest","digest":"DIGEST","size":10,"context_length":8192},
+				{"name":"remote:latest","digest":"DIGEST","size":10,"context_length":8192,"remote_host":"https://example.invalid"},
+				{"name":"hidden-remote:latest","digest":"DIGEST","size":10,"context_length":8192},
+				{"name":"text:latest","digest":"DIGEST","size":10,"context_length":8192},
+				{"name":"unknown-context:latest","digest":"DIGEST","size":10,"context_length":0}
+			]}`, "DIGEST", digest)
+		case "/api/show":
+			var request struct{ Model string }
+			if req.Method != http.MethodPost || json.NewDecoder(req.Body).Decode(&request) != nil {
+				t.Fatal("invalid read-only Ollama metadata request")
+			}
+			show = append(show, request.Model)
+			switch request.Model {
+			case "qwen:8b":
+				payload = `{"capabilities":["completion","tools"]}`
+			case "text:latest":
+				payload = `{"capabilities":["completion"]}`
+			case "hidden-remote:latest":
+				payload = `{"capabilities":["tools"],"remote_model":"remote-model"}`
+			default:
+				t.Fatalf("requested a nonlocal or unready model: %q", request.Model)
+			}
+		case "/v1/models":
+			payload = `{"data":[{"id":"qwen:8b"},{"id":"text:latest"},{"id":"hidden-remote:latest"},{"id":"installed-only:latest"}]}`
+		default:
+			t.Fatalf("unexpected Ollama endpoint: %s", req.URL.Path)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(payload))}, nil
+	})}
+	models, err := readLocalPiModels(context.Background(), client, "ollama-pi")
+	if err != nil || !reflect.DeepEqual(models, []localPiModel{{"qwen:8b", 8192}}) || len(show) != 3 {
+		t.Fatalf("unexpected running models: %v err=%v inspected=%v", models, err, show)
 	}
 }
 
@@ -150,8 +214,8 @@ func TestPiLocalRoutesUseAnotherProviderAfterModelDisappears(t *testing.T) {
 	if err := r.EnableFigureOut("full"); err != nil {
 		t.Fatal(err)
 	}
-	r.freePlatforms = []string{"kilo", "lmstudio", "llamacpp"}
-	models := []string{"kilo/vendor/promo:free", "lmstudio/fixture/model", "llamacpp/fixture.gguf"}
+	r.freePlatforms = []string{"kilo", "ollama-pi", "sglang"}
+	models := []string{"kilo/vendor/promo:free", "ollama-pi/fixture:8b", "sglang/fixture/model"}
 	r.Discover = func(context.Context) ([]string, error) { return models, nil }
 	var used []string
 	r.Invoke = func(_ context.Context, connection Connection, _, _ string, _ bool, model string) (string, error) {

@@ -13,7 +13,7 @@ BuildHeadway runs checks, coordinates real agent consultations, and continues th
 Download the installable `.tgz` package, then run with Node.js 20+ and npm:
 
 ```sh
-npm install --global --ignore-scripts ./buildheadway-0.59.0.tgz
+npm install --global --ignore-scripts ./buildheadway-0.60.0.tgz
 buildheadway --version
 cd my-project
 buildheadway
@@ -35,7 +35,7 @@ On first launch, select an installed senior agent and complete its own sign-in. 
 
 Press Ctrl+P for searchable commands. Read history while agents continue; Ctrl+End returns to live output. See the [terminal interface guide](docs/terminal.md).
 
-Use `buildheadway freebies platforms --check` to inspect free routes, including Kilo Gateway, Ollama, LM Studio and llama.cpp. Full-access goals can switch between enabled verified-free providers. See [free platform setup](docs/free-platforms.md).
+Use `buildheadway freebies platforms --check` to inspect free routes, including Kilo Gateway and local Ollama, LM Studio, llama.cpp and SGLang. Full-access goals can switch between enabled verified-free providers. See [free platform setup](docs/free-platforms.md).
 
 Use `buildheadway inputs` to inspect the actual saved instructions sent to agents; see [prompt inspection](docs/inputs.md).
 

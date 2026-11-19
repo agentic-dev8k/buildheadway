@@ -1,6 +1,6 @@
 # Free platforms
 
-OpenCode is the default zero-price pool. Full-access goals can also use Cline promotions, OpenRouter free variants, keyless Kilo Gateway offers, and local models in Ollama, LM Studio, or llama.cpp. BuildHeadway refreshes eligibility before dispatch and pins the selected provider and model. A known provider limit holds that platform out of the rest of the run. Automatic selection then checks the other enabled platforms. Explicit model choices pause at their provider limit.
+OpenCode is the default zero-price pool. Full-access goals can also use Cline promotions, OpenRouter free variants, keyless Kilo Gateway offers, and local models in Ollama, LM Studio, llama.cpp or SGLang. BuildHeadway checks independent platforms concurrently and combines the catalogs in OpenCode-first order, followed by the order in `BUILDHEADWAY_FREE_PLATFORMS`. It refreshes eligibility before dispatch and pins the selected provider and model. A known provider limit holds that platform out of the rest of the run. Automatic selection then checks the other enabled platforms. Explicit model choices pause at their provider limit.
 
 ## Inspect available platforms
 
@@ -20,8 +20,10 @@ The first command prints setup details. The second reads the official public Cli
 | Kilo Gateway | Optional keyless pool of tool-capable free variants and Kilo Auto Free | Native Kilo CLI |
 | Command Code hosted | Discovery of published free model IDs | Manage offers in the native Command Code CLI |
 | Ollama through Command Code | Optional automatic pool of installed, tool-capable local models | Ollama running on loopback and a compatible native Command Code CLI with headless sign-in |
+| Ollama through Pi | Optional keyless pool of running, tool-capable local models | Pi and Ollama on `127.0.0.1:11434` |
 | LM Studio through Pi | Optional pool of loaded tool-capable models | Pi and the local LM Studio server on `127.0.0.1:1234` |
 | llama.cpp through Pi | Optional loaded model with a tool-capable chat template | Pi and a single-model `llama-server` on `127.0.0.1:8080` |
+| SGLang through Pi | Optional served model with a configured tool-call parser | Pi and a recent SGLang server on `127.0.0.1:30000` |
 | Codex | Senior connection using your own account allowance | Sign in with ChatGPT through Codex |
 
 The Command Code public model API lists hosted IDs and supported endpoints. The automatic Command Code route uses the local Ollama catalog below. See [Command Code models](https://commandcode.ai/models) and [the model API](https://commandcode.ai/docs/provider).
@@ -54,26 +56,35 @@ export BUILDHEADWAY_FREE_PLATFORMS=ollama
 buildheadway
 ```
 
-In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama'`. To enable all optional routes together, use `cline,openrouter,kilo,ollama,lmstudio,llamacpp` as the value.
+In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama'`.
 
 Command Code's headless CLI requires an existing native login. BuildHeadway launches it in local-only mode with the selected installed model and a keyless loopback endpoint. Setup adds the `buildheadway-ollama` provider to `~/.commandcode/providers.json` and preserves other providers. Run setup again after installing new models. Any Command Code feature model overrides must also resolve to verified models in that local provider. See [Command Code headless authentication](https://commandcode.ai/docs/headless) and [Ollama BYOK configuration](https://commandcode.ai/docs/byok).
 
 Eligible models appear as `ollama/<model>` in `/models`. Ollama uses your hardware and has no hosted inference quota. BuildHeadway checks installed model metadata before dispatch and verifies the model recorded by the native CLI.
 
-## Enable LM Studio and llama.cpp through Pi
+## Enable local servers through Pi
 
 Install a compatible Pi CLI with `buildheadway setup --install pi`. These routes speak OpenAI-compatible Chat Completions over loopback and use a temporary Pi profile.
 
 - For **LM Studio**, load a tool-capable model and start its local API server on port 1234 in its default keyless mode. [LM Studio server setup](https://lmstudio.ai/docs/developer/rest/quickstart)
-- For **llama.cpp**, start a single-model server on port 8080 with a tool-capable chat template. [llama.cpp server guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+- For **llama.cpp**, use a model with a tool-capable chat template. Run `llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080 --jinja`. [llama.cpp server guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+- For **Ollama**, start Ollama in local-only mode and run a local model that supports tools, for example with `ollama run qwen3:8b`. Keep it loaded while using BuildHeadway. This route requires no account and only offers models reported as running with a known context length. [Running Ollama models](https://docs.ollama.com/api/ps) · [Ollama local-only mode](https://docs.ollama.com/faq#how-do-i-disable-ollama-s-cloud-features)
+- For **SGLang**, start a keyless loopback server with a tool-capable model, a served name, and its matching `--tool-call-parser`. BuildHeadway needs `/model_info` to report the served name and parser, and `/v1/models` to report the model's context length. [SGLang server arguments](https://docs.sglang.io/docs/advanced_features/server_arguments) · [SGLang tool parsers](https://docs.sglang.io/docs/advanced_features/tool_parser)
 
 ```sh
-llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080 --jinja
-export BUILDHEADWAY_FREE_PLATFORMS=lmstudio,llamacpp
-buildheadway freebies platforms --check
+python -m sglang.launch_server --model-path Qwen/Qwen3-8B --served-model-name qwen3-8b \
+  --tool-call-parser qwen25 --host 127.0.0.1 --port 30000
 ```
 
-In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'lmstudio,llamacpp'`. Select the platform values that match your running servers. Models appear as `lmstudio/<model>` or `llamacpp/<model>`. BuildHeadway cross-checks each loaded instance against the server's OpenAI-compatible model list and restricts inference to the selected model on loopback.
+In the terminal running BuildHeadway, select the routes for the servers you have started.
+
+```sh
+export BUILDHEADWAY_FREE_PLATFORMS=ollama-pi,sglang
+buildheadway freebies platforms --check
+buildheadway
+```
+
+In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama-pi,sglang'`. The four Pi routes are `lmstudio`, `llamacpp`, `ollama-pi` and `sglang`. Models appear in `/models` as `<route>/<model>`. BuildHeadway cross-checks each loaded model against the server's OpenAI-compatible model list and restricts inference to the selected model on loopback.
 
 ## Enable Cline and OpenRouter
 

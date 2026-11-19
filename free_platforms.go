@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -55,10 +56,10 @@ func selectedFreePlatforms(value string) ([]string, error) {
 	for _, part := range strings.Split(value, ",") {
 		name := strings.ToLower(strings.TrimSpace(part))
 		switch name {
-		case "cline", "openrouter", "ollama", "kilo", "lmstudio", "llamacpp":
+		case "cline", "openrouter", "ollama", "kilo", "lmstudio", "llamacpp", "ollama-pi", "sglang":
 			names = append(names, name)
 		default:
-			return nil, fmt.Errorf("%s accepts cline, openrouter, ollama, kilo, lmstudio and llamacpp", freePlatformsEnv)
+			return nil, fmt.Errorf("%s accepts cline, openrouter, ollama, kilo, lmstudio, llamacpp, ollama-pi and sglang", freePlatformsEnv)
 		}
 	}
 	return Unique(names), nil
@@ -302,7 +303,7 @@ func freeModelConnection(requested Connection, model string) Connection {
 		return Connection{Backend: "commandcode", Provider: commandCodeOllamaProvider, Model: id, RequireFree: true}
 	case "kilo":
 		return Connection{Backend: "kilo", Provider: "kilo", Model: model, RequireFree: true}
-	case "lmstudio", "llamacpp":
+	case "lmstudio", "llamacpp", "ollama-pi", "sglang":
 		return Connection{Backend: "pi", Provider: localPiProvider, Model: model, RequireFree: true}
 	default:
 		requested.Model, requested.RequireFree = model, true
@@ -329,58 +330,69 @@ func freePlatformStatuses(ctx context.Context, paths Paths, check bool) ([]FreeP
 		{Platform: "openrouter", Status: "optional", Enabled: contains(enabled, "openrouter"), Detail: "Verified tool-capable :free models via Cline and OPENROUTER_API_KEY."},
 		{Platform: "commandcode", Status: "discovery", Detail: "Published Command Code hosted variants. Local execution is available through the Ollama route."},
 		{Platform: "ollama", Status: "optional", Enabled: contains(enabled, "ollama"), Detail: "Installed tool-capable Ollama models via Command Code in local-only mode. Configure with buildheadway freebies platforms setup ollama."},
+		{Platform: "ollama-pi", Status: "optional", Enabled: contains(enabled, "ollama-pi"), Detail: "Running tool-capable Ollama models on 127.0.0.1:11434, through Pi without an account."},
 		{Platform: "kilo", Status: "optional", Enabled: contains(enabled, "kilo"), Detail: "Keyless Kilo Gateway free models through the native Kilo CLI. Install it with npm install --global @kilocode/cli."},
 		{Platform: "lmstudio", Status: "optional", Enabled: contains(enabled, "lmstudio"), Detail: "Loaded tool-capable LM Studio models on 127.0.0.1:1234, through Pi."},
 		{Platform: "llamacpp", Status: "optional", Enabled: contains(enabled, "llamacpp"), Detail: "A loaded tool-capable llama.cpp model on 127.0.0.1:8080, through Pi."},
+		{Platform: "sglang", Status: "optional", Enabled: contains(enabled, "sglang"), Detail: "A served SGLang model configured with a tool-call parser on 127.0.0.1:30000, through Pi."},
 		{Platform: "codex", Status: "account_allowance", Detail: "Use ChatGPT sign-in with the Codex senior connection. Usage is assigned by the account plan."},
 	}
-	if !check {
-		return rows, nil
+	if check {
+		probeFreePlatformRows(ctx, paths, rows, freeCatalogClient)
+		return rows, ctx.Err()
 	}
+	return rows, nil
+}
+
+func probeFreePlatformRows(ctx context.Context, paths Paths, rows []FreePlatformStatus, catalogClient *http.Client) {
+	checkPi := sync.OnceValue(func() error { return compatibleLocalPi(ctx, paths) })
+	var probes sync.WaitGroup
 	for i := range rows {
-		switch rows[i].Platform {
-		case "cline", "openrouter", "commandcode", "kilo":
-			models, err := readAdditionalFreeCatalog(ctx, freeCatalogClient, rows[i].Platform)
-			rows[i].Models = models
-			if err != nil {
-				rows[i].Status = "catalog_unavailable"
-				rows[i].Detail = freebieTerminalLine(err.Error(), 500)
-			} else {
-				rows[i].Status = "catalog_checked"
-				if rows[i].Platform == "commandcode" {
-					rows[i].Status = "offers_listed"
-				} else if rows[i].Platform == "kilo" {
-					if err := compatibleFreeKilo(ctx, paths); err != nil {
-						rows[i].Status = "cli_setup_needed"
-						rows[i].Detail = freebieTerminalLine(err.Error(), 500)
-					} else {
-						rows[i].Detail += " Native CLI detected. Kilo Gateway applies its free request limit."
-					}
+		row := &rows[i]
+		probes.Go(func() {
+			switch row.Platform {
+			case "cline", "openrouter", "commandcode", "kilo":
+				models, err := readAdditionalFreeCatalog(ctx, catalogClient, row.Platform)
+				row.Models = models
+				if err != nil {
+					row.Status = "catalog_unavailable"
+					row.Detail = freebieTerminalLine(err.Error(), 500)
 				} else {
-					rows[i].Detail += " Catalog check only. Account access and quota are checked by the native agent."
+					row.Status = "catalog_checked"
+					if row.Platform == "commandcode" {
+						row.Status = "offers_listed"
+					} else if row.Platform == "kilo" {
+						if err := compatibleFreeKilo(ctx, paths); err != nil {
+							row.Status = "cli_setup_needed"
+							row.Detail = freebieTerminalLine(err.Error(), 500)
+						} else {
+							row.Detail += " Native CLI detected. Kilo Gateway applies its free request limit."
+						}
+					} else {
+						row.Detail += " Catalog check only. Account access and quota are checked by the native agent."
+					}
 				}
+			case "codex":
+				row.Detail = codexPlanStatus(ctx, paths)
+			case "ollama":
+				models, err := configuredLocalOllamaOffers(ctx, paths, "")
+				setLocalPlatformStatus(row, models, err)
+			case "lmstudio", "llamacpp", "ollama-pi", "sglang":
+				models, err := configuredLocalPiOffers(ctx, row.Platform, checkPi)
+				setLocalPlatformStatus(row, models, err)
 			}
-		case "codex":
-			rows[i].Detail = codexPlanStatus(ctx, paths)
-		case "ollama":
-			models, err := configuredLocalOllamaOffers(ctx, paths, "")
-			rows[i].Models = models
-			rows[i].Status = "local_models_configured"
-			if err != nil {
-				rows[i].Status = "local_setup_needed"
-				rows[i].Detail = freebieTerminalLine(err.Error(), 500)
-			}
-		case "lmstudio", "llamacpp":
-			models, err := configuredLocalPiOffers(ctx, paths, rows[i].Platform)
-			rows[i].Models = models
-			rows[i].Status = "local_models_configured"
-			if err != nil {
-				rows[i].Status = "local_setup_needed"
-				rows[i].Detail = freebieTerminalLine(err.Error(), 500)
-			}
-		}
+		})
 	}
-	return rows, ctx.Err()
+	probes.Wait()
+}
+
+func setLocalPlatformStatus(row *FreePlatformStatus, models []string, err error) {
+	row.Models = models
+	row.Status = "local_models_configured"
+	if err != nil {
+		row.Status = "local_setup_needed"
+		row.Detail = freebieTerminalLine(err.Error(), 500)
+	}
 }
 
 func codexPlanStatus(ctx context.Context, paths Paths) string {

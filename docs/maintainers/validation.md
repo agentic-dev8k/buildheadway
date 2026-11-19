@@ -1,3 +1,9 @@
+# BuildHeadway 0.60.0 expanded local routing — 2026-11-19
+
+- Continued from `pi-local-platforms-0.59` at `333a6ee05d823128ca14f5cc3f28f1d7c1493c5a`. Added SGLang and a keyless Pi route for Ollama. SGLang readiness uses the served model and parser fields verified against v0.5.23. Ollama readiness uses the running model list and tool capabilities.
+- A native Pi 1.5.2 exercise made two streamed requests on each new route, performed actual file writes in a temporary project, and verified zero-cost receipts for the selected models. Loopback fixtures supplied the server metadata and inference responses.
+- A test held the first local catalog open until the other local probe started and verified that discovery returned OpenCode first, followed by the configured local platforms in order. Regression tests cover overlapping hosted catalog reads, remote and unloaded Ollama models, SGLang parser and context requirements, and hosted quota followed by local model availability changes.
+
 # BuildHeadway 0.59.0 local Pi routes — 2026-11-19
 
 - Continued from `kilo-gateway-platform-0.58` at `7d89d05b096a52008e62fca19153c17a2b8f61c9`. Added loaded LM Studio and single-model llama.cpp discovery and native Pi execution.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.60.0 — 2026-11-19
+
+- Added keyless local Pi routes for running Ollama models and a tool-enabled SGLang server. Both verify the loaded model and its context window before dispatch.
+- Run independent provider checks concurrently in the free platform directory and automatic model discovery. Catalog response speed has no effect on configured fallback priority.
+
 ## 0.59.0 — 2026-11-19
 
 - Add opt-in LM Studio and llama.cpp routing through Pi. Discover loaded models with tool support, pin inference to loopback, and verify the selected model in Pi's native output.
