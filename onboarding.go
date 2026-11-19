@@ -180,7 +180,7 @@ func formatSetup(s SetupInspection) string {
 		}
 		fmt.Fprintf(&out, "\n%s: %s", id, v)
 	}
-	out.WriteString("\n\nInstalled, compatible and zero listed prices are separate checks. Account access and inference have not been tested.\nOpenCode supplies the default worker pool. Use /freebies platforms to inspect Cline, OpenRouter, Kilo and Ollama through Command Code.\nUse /connect to choose a senior. Missing or incompatible packages are reviewed before private installation. /freebies check discovers offers without installing or running models.")
+	out.WriteString("\n\nInstalled, compatible and zero listed prices are separate checks. Account access and inference have not been tested.\nOpenCode supplies the default worker pool. Use /freebies platforms to inspect hosted and local routes, including LM Studio and llama.cpp.\nUse /connect to choose a senior. Missing or incompatible packages are reviewed before private installation. /freebies check discovers offers without installing or running models.")
 	return out.String()
 }
 
