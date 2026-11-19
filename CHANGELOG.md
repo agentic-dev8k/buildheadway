@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.61.0 — 2026-11-19
+
+- Require a completed, nonempty final Pi reply for local inference. An interrupted, truncated, or tool-only reply enters the existing recovery flow.
+- Recover from temporary local inference failures using the next eligible free route. BuildHeadway keeps the original HTTP status, limits the failed request to its selected local server, and preserves partial worker edits for verification. Redirects and keyless access refusals pause the goal.
+
 ## 0.60.0 — 2026-11-19
 
 - Added keyless local Pi routes for running Ollama models and a tool-enabled SGLang server. Both verify the loaded model and its context window before dispatch.

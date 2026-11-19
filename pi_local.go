@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -74,26 +75,63 @@ type localPiRelay struct {
 	endpoint string
 	session  string
 	server   *http.Server
+	failure  atomic.Pointer[localPiRequestError]
+}
+
+type localPiRequestError struct{ status int }
+
+func (e *localPiRequestError) Error() string {
+	switch {
+	case e.status == 0:
+		return "the local inference connection failed"
+	case e.status >= 300 && e.status < 400:
+		return fmt.Sprintf("the local inference server attempted an HTTP %d redirect", e.status)
+	case e.status < 200:
+		return fmt.Sprintf("the local inference server returned unexpected HTTP %d", e.status)
+	case e.failureKind() == "policy":
+		return fmt.Sprintf("the local inference server refused keyless access (HTTP %d)", e.status)
+	default:
+		return fmt.Sprintf("the local inference server returned HTTP %d", e.status)
+	}
+}
+
+func (e *localPiRequestError) failureKind() string {
+	switch {
+	case e.status == 0 || e.status >= 500:
+		return "transient"
+	case e.status < 400 || e.status == 401 || e.status == 402 || e.status == 403:
+		return "policy"
+	case e.status == 404 || e.status == 408 || e.status == 410 || e.status == 429:
+		return "transient"
+	default:
+		return "execution"
+	}
 }
 
 // The native client only sees this per-run endpoint. The relay forwards the
 // selected model to a fixed loopback server and never follows its redirects.
-func startLocalPiRelay(origin, model string) (localPiRelay, error) {
+func startLocalPiRelay(origin, model string) (*localPiRelay, error) {
 	target, err := url.Parse(origin)
 	if err != nil {
-		return localPiRelay{}, err
+		return nil, err
 	}
 	if target.Scheme != "http" || target.Hostname() != "127.0.0.1" || target.User != nil {
-		return localPiRelay{}, errors.New("the local Pi provider must bind to 127.0.0.1")
+		return nil, errors.New("the local Pi provider must bind to 127.0.0.1")
 	}
 	var nonce [24]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return localPiRelay{}, err
+		return nil, err
 	}
 	session := hex.EncodeToString(nonce[:])
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		return localPiRelay{}, err
+		return nil, err
+	}
+	relay := &localPiRelay{endpoint: "http://" + listener.Addr().String() + "/v1", session: session}
+	reject := func(response http.ResponseWriter) {
+		// Send Pi a non-retryable response. BuildHeadway owns recovery and
+		// retains the original status even when project settings enable retries.
+		http.Error(response, "Local inference request failed", http.StatusBadRequest)
 	}
 	proxy := &httputil.ReverseProxy{
 		Transport:     localPiTransport,
@@ -106,17 +144,27 @@ func startLocalPiRelay(origin, model string) (localPiRelay, error) {
 			}
 		},
 		ModifyResponse: func(response *http.Response) error {
-			if response.StatusCode < 200 || (response.StatusCode >= 300 && response.StatusCode < 400) {
-				return errors.New("unexpected local inference response")
+			if response.StatusCode < 200 || response.StatusCode >= 300 {
+				return &localPiRequestError{status: response.StatusCode}
 			}
 			response.Header = http.Header{"Content-Type": {response.Header.Get("Content-Type")}}
 			return nil
 		},
-		ErrorHandler: func(response http.ResponseWriter, _ *http.Request, _ error) {
-			http.Error(response, "The local inference server is unavailable or redirected", http.StatusBadGateway)
+		ErrorHandler: func(response http.ResponseWriter, request *http.Request, err error) {
+			var failure *localPiRequestError
+			if !errors.As(err, &failure) {
+				if request.Context().Err() != nil {
+					return
+				}
+				failure = &localPiRequestError{}
+			}
+			// Preserve the upstream status separately from the native agent's
+			// stderr. Its response body may contain sensitive diagnostics.
+			relay.failure.CompareAndSwap(nil, failure)
+			reject(response)
 		},
 	}
-	server := &http.Server{
+	relay.server = &http.Server{
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		MaxHeaderBytes:    16 << 10,
@@ -141,16 +189,26 @@ func startLocalPiRelay(origin, model string) (localPiRelay, error) {
 				http.Error(response, "The local Pi request must use the selected model", http.StatusBadRequest)
 				return
 			}
+			if failure := relay.failure.Load(); failure != nil {
+				reject(response)
+				return
+			}
 			request.Body = io.NopCloser(bytes.NewReader(data))
 			request.ContentLength, request.TransferEncoding = int64(len(data)), nil
 			proxy.ServeHTTP(response, request)
 		}),
 	}
-	go func() { _ = server.Serve(listener) }()
-	return localPiRelay{"http://" + listener.Addr().String() + "/v1", session, server}, nil
+	go func() { _ = relay.server.Serve(listener) }()
+	return relay, nil
 }
 
-func writeLocalPiProfile(profile string, model localPiModel, relay localPiRelay) error {
+func writeLocalPiProfile(profile string, model localPiModel, relay *localPiRelay) error {
+	settings := map[string]any{
+		"retry": map[string]any{"enabled": false, "provider": map[string]int{"maxRetries": 0}},
+	}
+	if err := AtomicJSON(filepath.Join(profile, "settings.json"), settings); err != nil {
+		return err
+	}
 	provider := map[string]any{
 		"baseUrl": relay.endpoint, "api": "openai-completions", "apiKey": "local",
 		"headers": map[string]string{localPiSessionHeader: relay.session},
@@ -169,44 +227,66 @@ func writeLocalPiProfile(profile string, model localPiModel, relay localPiRelay)
 	})
 }
 
-func localPiReceipt(line, model string) (bool, error) {
+type localPiAssistantMessage struct {
+	Role       string          `json:"role"`
+	Provider   string          `json:"provider"`
+	Model      string          `json:"model"`
+	StopReason json.RawMessage `json:"stopReason"`
+	Content    json.RawMessage `json:"content"`
+	Usage      struct {
+		Cost map[string]json.RawMessage `json:"cost"`
+	} `json:"usage"`
+}
+
+func localPiReceipt(line, model string) (*localPiAssistantMessage, error) {
 	var event struct {
-		Type    string `json:"type"`
-		Message struct {
-			Role     string `json:"role"`
-			Provider string `json:"provider"`
-			Model    string `json:"model"`
-			Usage    struct {
-				Cost map[string]json.RawMessage `json:"cost"`
-			} `json:"usage"`
-		} `json:"message"`
+		Type    string                  `json:"type"`
+		Message localPiAssistantMessage `json:"message"`
 	}
 	if json.Unmarshal([]byte(line), &event) != nil || event.Type != "message_end" || event.Message.Role != "assistant" {
-		return false, nil
+		return nil, nil
 	}
 	message := event.Message
 	for name, cost := range message.Usage.Cost {
 		if name != "totalFromProvider" && !zeroCatalogPrice(cost) {
-			return false, costError{"Pi"}
+			return nil, costError{"Pi"}
 		}
 	}
 	if message.Provider != localPiProvider || message.Model != model || len(message.Usage.Cost["total"]) == 0 {
-		return false, freeRouteMismatchError{"Pi"}
+		return nil, freeRouteMismatchError{"Pi"}
 	}
-	return true, nil
+	return &message, nil
 }
 
 func verifyLocalPiOutput(raw, model string) error {
-	confirmed := false
+	var final *localPiAssistantMessage
 	for _, line := range strings.Split(raw, "\n") {
-		matched, err := localPiReceipt(line, model)
+		message, err := localPiReceipt(line, model)
 		if err != nil {
 			return err
 		}
-		confirmed = confirmed || matched
+		if message != nil {
+			final = message
+		}
 	}
-	if !confirmed {
+	if final == nil {
 		return freeRouteMismatchError{"Pi"}
 	}
-	return nil
+	var reason string
+	if json.Unmarshal(final.StopReason, &reason) != nil || reason != "stop" {
+		return errors.New("Pi did not finish the local response")
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(final.Content, &blocks); err != nil {
+		return errors.New("Pi returned an invalid final local response")
+	}
+	for _, block := range blocks {
+		if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+			return nil
+		}
+	}
+	return errors.New("Pi returned an empty final local response")
 }

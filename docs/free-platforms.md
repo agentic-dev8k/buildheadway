@@ -86,6 +86,8 @@ buildheadway
 
 In PowerShell use `$env:BUILDHEADWAY_FREE_PLATFORMS = 'ollama-pi,sglang'`. The four Pi routes are `lmstudio`, `llamacpp`, `ollama-pi` and `sglang`. Models appear in `/models` as `<route>/<model>`. BuildHeadway cross-checks each loaded model against the server's OpenAI-compatible model list and restricts inference to the selected model on loopback.
 
+If a local server is temporarily unavailable or returns an incomplete reply, BuildHeadway checks the eligible backups. Worker edits made before a failure enter verification before any further assignment. A local redirect or keyless access refusal pauses the goal so you can repair the server configuration. `/routing` shows model health and cooldowns.
+
 ## Enable Cline and OpenRouter
 
 Install a compatible Cline CLI using `buildheadway setup --install cline` or the official [Cline instructions](https://docs.cline.bot/cli/cli-reference). To enable Cline's own promotions, sign in through the native CLI with the managed profile:

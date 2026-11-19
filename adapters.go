@@ -339,6 +339,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 	env := ToolEnv(r.Paths)
 	processDir, processInput := r.Repo, prompt
 	piModelID := ""
+	var piRelay *localPiRelay
 	switch connection.Backend {
 	case "codex":
 		sandbox := "workspace-write"
@@ -435,6 +436,7 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 				return "", err
 			}
 			defer relay.server.Close()
+			piRelay = relay
 			if err := writeLocalPiProfile(profile, selected, relay); err != nil {
 				return "", err
 			}
@@ -648,6 +650,11 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 		}
 		return "", errors.Join(blocker, completeAgentOutput(result))
 	}
+	if piRelay != nil {
+		if failure := piRelay.failure.Load(); failure != nil && (err == nil || failure.failureKind() == "policy") {
+			return "", errors.Join(failure, completeAgentOutput(result))
+		}
+	}
 	if captureErr := completeAgentOutput(result); captureErr != nil {
 		return "", errors.Join(err, captureErr)
 	}
@@ -664,6 +671,9 @@ func (r *Runner) invokeCLI(ctx context.Context, connection Connection, prompt, l
 		return decodeCommandCodeOutput(result.Output, model)
 	}
 	if result.Code != 0 {
+		if piModelID != "" {
+			return "", fmt.Errorf("Pi exited %d during local inference; inspect the call log", result.Code)
+		}
 		return "", fmt.Errorf("%s exited %d: %s", connection.Backend, result.Code, Tail(result.Output, 2200))
 	}
 	if piModelID != "" {
