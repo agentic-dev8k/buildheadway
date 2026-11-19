@@ -121,67 +121,74 @@ func Compatible(ctx context.Context, connection Connection, paths Paths) error {
 	return nil
 }
 func (r *Runner) discoverModels(ctx context.Context) ([]string, error) {
-	var models []string
-	var primaryErr error
-	if _, held := r.limitedPlatforms["opencode"]; held {
-		primaryErr = errNoVerifiedFreeModels
-	} else {
-		models, primaryErr = r.discoverOpenCodeModels(ctx)
+	platforms := []string{"opencode"}
+	if r.State.RunID == "" || r.fullAccess() {
+		platforms = append(platforms, r.freePlatforms...)
 	}
-	if len(r.freePlatforms) == 0 || (r.State.RunID != "" && !r.fullAccess()) {
-		return models, primaryErr
+	type discovery struct {
+		models []string
+		err    error
 	}
+	results := make([]discovery, len(platforms))
 	checkCline := sync.OnceValue(func() error { return compatibleFreeCline(ctx, r.Paths) })
-	for _, platform := range r.freePlatforms {
-		if r.limitedPlatforms[platform].platform != "" {
-			continue
-		}
-		if platform == "ollama" {
-			found, err := configuredLocalOllamaOffers(ctx, r.Paths, r.Repo)
-			if err != nil {
-				r.Emit(Event{Kind: "status", Text: "Skipping ollama · " + freebieTerminalLine(err.Error(), 500)})
+	checkPi := sync.OnceValue(func() error { return compatibleLocalPi(ctx, r.Paths) })
+	var probes sync.WaitGroup
+	for i, platform := range platforms {
+		if _, held := r.limitedPlatforms[platform]; held {
+			if platform == "opencode" {
+				results[i].err = errNoVerifiedFreeModels
 			}
-			models = append(models, found...)
 			continue
 		}
-		if localPiOrigin(platform) != "" {
-			found, err := configuredLocalPiOffers(ctx, r.Paths, platform)
-			if err != nil {
-				r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · " + freebieTerminalLine(err.Error(), 500)})
+		probes.Go(func() {
+			if platform == "opencode" {
+				results[i].models, results[i].err = r.discoverOpenCodeModels(ctx)
+			} else {
+				results[i].models, results[i].err = r.discoverOptionalModels(ctx, platform, checkCline, checkPi)
 			}
-			models = append(models, found...)
-			continue
-		}
-		if platform == "kilo" {
-			if err := compatibleFreeKilo(ctx, r.Paths); err != nil {
-				r.Emit(Event{Kind: "status", Text: "Skipping kilo · " + freebieTerminalLine(err.Error(), 500)})
-				continue
-			}
-		} else {
-			if err := checkCline(); err != nil {
-				r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · compatible Cline unavailable"})
-				continue
-			}
-		}
-		if err := freePlatformPrerequisite(platform, r.Paths); err != nil {
-			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · " + err.Error()})
-			continue
-		}
-		found, err := readAdditionalFreeCatalog(ctx, freeCatalogClient, platform)
-		if err != nil {
-			r.Emit(Event{Kind: "status", Text: "Skipping " + platform + " · fresh catalog unavailable"})
-			continue
-		}
-		models = append(models, found...)
+		})
 	}
+	probes.Wait()
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
+	var models []string
+	for i, result := range results {
+		if i > 0 && result.err != nil {
+			r.Emit(Event{Kind: "status", Text: "Skipping " + platforms[i] + " · " + freebieTerminalLine(result.err.Error(), 500)})
+		}
+		models = append(models, result.models...)
+	}
 	if len(models) == 0 {
-		if primaryErr != nil {
-			return nil, primaryErr
+		if results[0].err != nil {
+			return nil, results[0].err
 		}
 		return nil, errNoVerifiedFreeModels
+	}
+	return models, nil
+}
+
+func (r *Runner) discoverOptionalModels(ctx context.Context, platform string, checkCline, checkPi func() error) ([]string, error) {
+	switch {
+	case platform == "ollama":
+		return configuredLocalOllamaOffers(ctx, r.Paths, r.Repo)
+	case localPiOrigin(platform) != "":
+		return configuredLocalPiOffers(ctx, platform, checkPi)
+	case platform == "kilo":
+		if err := compatibleFreeKilo(ctx, r.Paths); err != nil {
+			return nil, err
+		}
+	default:
+		if err := checkCline(); err != nil {
+			return nil, errors.New("compatible Cline unavailable")
+		}
+		if err := freePlatformPrerequisite(platform, r.Paths); err != nil {
+			return nil, err
+		}
+	}
+	models, err := readAdditionalFreeCatalog(ctx, freeCatalogClient, platform)
+	if err != nil {
+		return nil, fmt.Errorf("fresh catalog unavailable: %w", err)
 	}
 	return models, nil
 }
