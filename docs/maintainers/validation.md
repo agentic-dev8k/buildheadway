@@ -1,3 +1,9 @@
+# BuildHeadway 0.61.0 local inference recovery — 2026-11-19
+
+- Continued from `expanded-local-routing-0.60` at `dbb6fbdcf00367dc0782ef6ef95ffbf0ac04e5e2`. The saved 0.60.0 package passed a fresh install and offline self-test. Native Pi 1.5.2 reproduced a false completion from an empty reply and an HTTP 429 that retried four times and surfaced as a sign-in error.
+- With the fix, a disconnect, an empty reply, and the local 429 each switched to the verified Ollama backup after one failed SGLang request. A native file write followed by HTTP 503 kept the partial edit for verification. Another run verified successful completion after a native file write. HTTP 302 and HTTP 401 paused without invoking a backup or following a redirect. The servers supplied scripted loopback replies.
+- Regression coverage includes the final-reply requirement, independent cost and model receipts, HTTP status classification, and upstream diagnostic isolation. The public Cline, OpenRouter, Command Code, and Kilo catalog checks also returned results in a read-only scan.
+
 # BuildHeadway 0.60.0 expanded local routing — 2026-11-19
 
 - Continued from `pi-local-platforms-0.59` at `333a6ee05d823128ca14f5cc3f28f1d7c1493c5a`. Added SGLang and a keyless Pi route for Ollama. SGLang readiness uses the served model and parser fields verified against v0.5.23. Ollama readiness uses the running model list and tool capabilities.
